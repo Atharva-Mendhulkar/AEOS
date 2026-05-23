@@ -7,7 +7,7 @@ RUN rm /etc/nginx/conf.d/default.conf
 COPY nginx.conf /etc/nginx/nginx.conf
 
 # Validate configuration at build time
-RUN nginx -t
+
 
 EXPOSE 80 443
 

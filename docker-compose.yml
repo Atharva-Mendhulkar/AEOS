@@ -1,78 +1,66 @@
-version: "3.9"
-
-# AEOS Control Panel — Docker Compose
-# All services share the aeos-network bridge.
-# Only nginx is exposed externally on ports 80/443.
-# All inter-service communication uses internal Docker DNS names.
-
+version: '3.9'
 networks:
   aeos-network:
     driver: bridge
-
 volumes:
-  postgres-data:
-  redis-data:
-
+  postgres-data: null
+  redis-data: null
 services:
-
-  # ─────────────────────────────────────────────
-  # Infrastructure
-  # ─────────────────────────────────────────────
-
   nginx:
     build:
       context: ./infra/nginx
       dockerfile: Dockerfile
     ports:
-      - "80:80"
-      - "443:443"
+    - 80:80
+    - 443:443
     volumes:
-      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
+    - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
-      - frontend
-      - api-gateway
-      - observability-service
+    - frontend
+    - api-gateway
+    - observability-service
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
   postgres:
     image: pgvector/pgvector:pg16
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./infra/db/migrations:/docker-entrypoint-initdb.d:ro
+    - postgres-data:/var/lib/postgresql/data
+    - ./infra/db/migrations:/docker-entrypoint-initdb.d:ro
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test:
+      - CMD-SHELL
+      - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
       interval: 10s
       timeout: 5s
       retries: 5
-
   redis:
     image: redis:7.2-alpine
     command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
     volumes:
-      - redis-data:/data
+    - redis-data:/data
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      test:
+      - CMD
+      - redis-cli
+      - -a
+      - ${REDIS_PASSWORD}
+      - ping
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # ─────────────────────────────────────────────
-  # Presentation Layer
-  # ─────────────────────────────────────────────
-
   frontend:
     build:
       context: ./frontend
@@ -80,16 +68,12 @@ services:
     environment:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
-      - api-gateway
+    - api-gateway
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
-  # ─────────────────────────────────────────────
-  # API Gateway (L1 entry point)
-  # ─────────────────────────────────────────────
-
   api-gateway:
     build:
       context: ./services/api-gateway
@@ -101,44 +85,42 @@ services:
       COORDINATOR_URL: http://coordinator:8001
       MEMORY_AGENT_URL: http://memory-agent:8017
       OBSERVABILITY_URL: http://observability-service:8040
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
-  # ─────────────────────────────────────────────
-  # Coordination Layer
-  # ─────────────────────────────────────────────
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
+    ports:
+    - 8000:8000
   coordinator:
     build:
       context: ./services/coordinator
       dockerfile: Dockerfile
     environment:
-      PORT: "8001"
+      PORT: '8001'
       REDIS_URL: ${REDIS_URL}
       DATABASE_URL: ${DATABASE_URL}
       PLANNER_URL: http://planner-agent:8010
       OBSERVABILITY_URL: http://observability-service:8040
       MEMORY_AGENT_URL: http://memory-agent:8017
       ESCALATION_URL: http://escalation-agent:8016
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
-  # ─────────────────────────────────────────────
-  # Specialist Agent Layer
-  # ─────────────────────────────────────────────
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   planner-agent:
     build:
       context: ./services/planner-agent
@@ -152,15 +134,17 @@ services:
       GOVERNANCE_URL: http://governance-service:8020
       MEMORY_AGENT_URL: http://memory-agent:8017
       ESCALATION_URL: http://escalation-agent:8016
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   incident-analysis-agent:
     build:
       context: ./services/incident-analysis-agent
@@ -174,15 +158,17 @@ services:
       MEMORY_AGENT_URL: http://memory-agent:8017
       ESCALATION_URL: http://escalation-agent:8016
       CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD}
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   operations-agent:
     build:
       context: ./services/operations-agent
@@ -195,15 +181,17 @@ services:
       COORDINATOR_URL: http://coordinator:8001
       GOVERNANCE_URL: http://governance-service:8020
       MEMORY_AGENT_URL: http://memory-agent:8017
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   compliance-agent:
     build:
       context: ./services/compliance-agent
@@ -216,15 +204,17 @@ services:
       COORDINATOR_URL: http://coordinator:8001
       GOVERNANCE_URL: http://governance-service:8020
       MEMORY_AGENT_URL: http://memory-agent:8017
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   validation-agent:
     build:
       context: ./services/validation-agent
@@ -237,15 +227,17 @@ services:
       COORDINATOR_URL: http://coordinator:8001
       GOVERNANCE_URL: http://governance-service:8020
       MEMORY_AGENT_URL: http://memory-agent:8017
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   recovery-agent:
     build:
       context: ./services/recovery-agent
@@ -258,15 +250,17 @@ services:
       ESCALATION_URL: http://escalation-agent:8016
       MEMORY_AGENT_URL: http://memory-agent:8017
       OBSERVABILITY_URL: http://observability-service:8040
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   escalation-agent:
     build:
       context: ./services/escalation-agent
@@ -281,15 +275,17 @@ services:
       OBSERVABILITY_URL: http://observability-service:8040
       ESCALATION_TIMEOUT_SECONDS: ${ESCALATION_TIMEOUT_SECONDS}
       ESCALATION_TIER2_TIMEOUT_SECONDS: ${ESCALATION_TIER2_TIMEOUT_SECONDS}
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   memory-agent:
     build:
       context: ./services/memory-agent
@@ -298,19 +294,17 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       MEMORY_CONTEXT_QUERY_TIMEOUT_MS: ${MEMORY_CONTEXT_QUERY_TIMEOUT_MS}
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
-  # ─────────────────────────────────────────────
-  # Runtime Governance Layer
-  # ─────────────────────────────────────────────
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   governance-service:
     build:
       context: ./services/governance-service
@@ -327,19 +321,17 @@ services:
       RISK_THRESHOLD_CRITICAL: ${RISK_THRESHOLD_CRITICAL}
       POLICY_RELOAD_TIMEOUT_SECONDS: ${POLICY_RELOAD_TIMEOUT_SECONDS}
       ANOMALY_BASELINE_WINDOW: ${ANOMALY_BASELINE_WINDOW}
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
-  # ─────────────────────────────────────────────
-  # Workflow Engine Layer
-  # ─────────────────────────────────────────────
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   workflow-engine:
     build:
       context: ./services/workflow-engine
@@ -355,19 +347,17 @@ services:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
       STEP_EXECUTION_TIMEOUT_SECONDS: ${STEP_EXECUTION_TIMEOUT_SECONDS}
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
-
-  # ─────────────────────────────────────────────
-  # Observability Layer
-  # ─────────────────────────────────────────────
-
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared
   observability-service:
     build:
       context: ./services/observability-service
@@ -378,11 +368,14 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       EVENT_BUFFER_SIZE: ${EVENT_BUFFER_SIZE}
       AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS}
+      AEOS_JWT_SECRET: ${AEOS_JWT_SECRET:-${JWT_SECRET}}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     networks:
-      - aeos-network
+    - aeos-network
     restart: unless-stopped
+    volumes:
+    - ./shared/python/aeos_shared:/app/aeos_shared

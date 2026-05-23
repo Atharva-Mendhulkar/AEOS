@@ -225,7 +225,7 @@ async def get_incident(
     db: asyncpg.Connection = Depends(get_db)
 ):
     row = await db.fetchrow(
-        "SELECT id, root_signature, severity, confidence_score, status, source_input_ref, workflow_id, created_at, updated_at FROM incidents WHERE id = $1",
+        "SELECT id, root_signature, severity, confidence_score, status, source_input_ref, workflow_id, created_at, updated_at FROM incidents WHERE id = $1 OR source_input_ref = $1",
         id
     )
     if not row:

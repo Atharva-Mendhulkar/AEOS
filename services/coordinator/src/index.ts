@@ -87,10 +87,20 @@ async function activateStep(workflowId: string, stepId: string) {
       incident_id: incidentId,
       action: step.action,
       context: {
-        step_outputs: stepOutputs,
-        agent_outputs: agentOutputs
+        incident_id: incidentId,
+        historical_resolutions: [],
+        agent_metrics: {},
+        policy_constraints: {
+          step_outputs: stepOutputs,
+          agent_outputs: agentOutputs
+        }
       },
-      permissions: []
+      permissions: {
+        agent_type: step.agent_type,
+        allowed_resources: [],
+        denied_resources: [],
+        allowed_api_scopes: []
+      }
     };
 
     await redis.publish(`agent:${step.agent_type}:tasks`, JSON.stringify(taskPayload));
@@ -148,9 +158,22 @@ app.post("/coordinator/route-input", async (req: Request, res: Response) => {
     workflow_id: workflowId,
     step_id: stepId,
     incident_id: input_id,
-    action: "classify",
-    context: {},
-    permissions: [],
+    action: {
+      tool: "classify",
+      params: {}
+    },
+    context: {
+      incident_id: input_id,
+      historical_resolutions: [],
+      agent_metrics: {},
+      policy_constraints: {}
+    },
+    permissions: {
+      agent_type: "incident_analysis",
+      allowed_resources: [],
+      denied_resources: [],
+      allowed_api_scopes: []
+    },
   };
 
   try {
@@ -335,8 +358,8 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
 
       await client.query(
         `INSERT INTO incidents (id, root_signature, severity, confidence_score, status, source_input_ref, workflow_id, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())`,
-        [incidentId, root_signature, finalSeverity, confidence_score, incidentStatus, resolvedInputId, workflow_id]
+         VALUES ($1, $2, $3, $4, $5, $6, NULL, NOW(), NOW())`,
+        [incidentId, root_signature, finalSeverity, confidence_score, incidentStatus, resolvedInputId]
       );
 
       // Create workflow
@@ -344,6 +367,12 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
         `INSERT INTO workflows (id, incident_id, plan, status, current_step_ids, retry_count, checkpoint, created_at, updated_at)
          VALUES ($1, $2, $3, $4, $5, 0, NULL, NOW(), NOW())`,
         [workflow_id, incidentId, JSON.stringify({ steps: [] }), "planning", []]
+      );
+
+      // Update incident with workflow_id
+      await client.query(
+        `UPDATE incidents SET workflow_id = $1 WHERE id = $2`,
+        [workflow_id, incidentId]
       );
 
       await client.query(
