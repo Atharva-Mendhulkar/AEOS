@@ -158,10 +158,34 @@ async def emit_circuit_breaker_activated(agent: str, incident_id: Optional[str],
 # API Endpoints
 # ---------------------------------------------------------------------------
 
+async def emit_governance_state(status: str, incident_id: Optional[str] = None, workflow_id: Optional[str] = None):
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{OBSERVABILITY_URL}/observability/events",
+                json={
+                    "type": "agent.state_changed",
+                    "payload": {
+                        "agent_role": "governance",
+                        "status": status,
+                        "active_steps": 1 if status == "active" else 0,
+                        "incident_id": incident_id,
+                        "workflow_id": workflow_id
+                    },
+                    "emitted_at": datetime_now_iso()
+                },
+                timeout=1.0
+            )
+    except Exception as e:
+        logger.error(f"Failed to emit governance state {status}: {e}")
+
 @app.post("/governance/validate-action")
 async def validate_action(req: ValidateActionRequest):
     action_dict = req.action.model_dump()
     logger.info(f"Validating action: {req.action.tool} for agent {req.agent_type}")
+
+    # Emit active state
+    await emit_governance_state("active", req.incident_id, req.workflow_id)
 
     # 1. Permission Gating check (before risk scoring)
     perm_res = await check_permission(req.agent_type, action_dict)
@@ -178,6 +202,8 @@ async def validate_action(req: ValidateActionRequest):
             workflow_id=req.workflow_id,
             risk=10.0
         )
+        # Emit idle state
+        await emit_governance_state("idle", req.incident_id, req.workflow_id)
         return {
             "approved": False,
             "status": "denied",
@@ -232,6 +258,9 @@ async def validate_action(req: ValidateActionRequest):
         workflow_id=req.workflow_id,
         risk=score
     )
+
+    # Emit idle state
+    await emit_governance_state("idle", req.incident_id, req.workflow_id)
 
     return {
         "approved": approved,

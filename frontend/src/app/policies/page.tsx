@@ -197,8 +197,8 @@ export default function PolicyManager() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-white">System Governance Policies</h1>
-          <p className="text-sm text-gray-400 mt-1">Manage active risk constraints, anomaly bounds, and automation thresholds.</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-black">System Governance Policies</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage active risk constraints, anomaly bounds, and automation thresholds.</p>
         </div>
 
         <RoleGate roles={["admin", "compliance"]}>
@@ -220,12 +220,12 @@ export default function PolicyManager() {
       {/* Policies List */}
       {!policies ? (
         <div className="py-20 flex flex-col items-center justify-center gap-4">
-          <div className="w-10 h-10 border-4 border-t-blue-500 border-r-transparent border-slate-800 rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-t-blue-500 border-r-transparent border-gray-200 rounded-full animate-spin"></div>
           <p className="text-xs text-gray-500 font-mono">Loading active governance profiles...</p>
         </div>
       ) : list.length === 0 ? (
-        <div className="py-24 text-center glassmorphism rounded-xl border border-slate-850">
-          <p className="text-sm text-gray-400">No policies configured in current workspace.</p>
+        <div className="py-24 text-center glassmorphism rounded-xl border border-gray-200">
+          <p className="text-sm text-gray-500">No policies configured in current workspace.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -239,30 +239,30 @@ export default function PolicyManager() {
             return (
               <div
                 key={policy.id}
-                className="glassmorphism p-5 rounded-xl border border-slate-800 flex flex-col justify-between gap-4 hover:border-slate-700 transition"
+                className="glassmorphism p-5 rounded-xl border border-gray-200 flex flex-col justify-between gap-4 hover:border-gray-300 transition shadow-sm"
               >
                 <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                    <span className="text-xs font-mono font-bold text-blue-400 uppercase bg-blue-600/10 px-2 py-0.5 rounded">
+                  <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2">
+                    <span className="text-xs font-mono font-bold text-blue-600 uppercase bg-blue-100 px-2 py-0.5 rounded">
                       {policy.policy_type}
                     </span>
                     <div className="flex items-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-glowEmerald" : "bg-gray-600"}`}></span>
-                      <span className={`text-[10px] font-mono font-bold ${isActive ? "text-glowEmerald" : "text-gray-500"}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${isActive ? "bg-green-500" : "bg-gray-400"}`}></span>
+                      <span className={`text-[10px] font-mono font-bold ${isActive ? "text-green-600" : "text-gray-500"}`}>
                         {isActive ? "ACTIVE" : "INACTIVE"}
                       </span>
                     </div>
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-white text-sm tracking-wide">{policy.name}</h3>
+                    <h3 className="font-bold text-black text-sm tracking-wide">{policy.name}</h3>
                     <p className="text-[10px] text-gray-500 font-mono mt-0.5">
                       Version: {policy.version} • Created by: {policy.created_by.substring(0, 12)}
                     </p>
                   </div>
 
-                  <div className="bg-slate-950/40 p-3 rounded-lg border border-slate-900 overflow-hidden">
-                    <pre className="text-[10px] font-mono text-gray-300 leading-relaxed overflow-x-auto max-h-40 scrollbar-thin">
+                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 overflow-hidden">
+                    <pre className="text-[10px] font-mono text-black leading-relaxed overflow-x-auto max-h-40 scrollbar-thin">
                       {configFormatted}
                     </pre>
                   </div>
@@ -280,14 +280,14 @@ export default function PolicyManager() {
                   >
                     <button
                       onClick={() => setEditingPolicy(policy)}
-                      className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-750 text-gray-300 rounded text-[10px] font-bold font-mono transition"
+                      className="px-2.5 py-1.5 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 rounded text-[10px] font-bold font-mono transition"
                     >
                       Edit
                     </button>
                     {isActive && (
                       <button
                         onClick={() => setDeactivatingPolicy(policy)}
-                        className="px-2.5 py-1.5 bg-red-950/20 hover:bg-red-900/20 border border-red-900/30 text-red-400 rounded text-[10px] font-bold font-mono transition"
+                        className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded text-[10px] font-bold font-mono transition"
                       >
                         Deactivate
                       </button>
@@ -302,25 +302,25 @@ export default function PolicyManager() {
 
       {/* CREATE Policy Modal */}
       {createModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-panel border border-slate-800 rounded-xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-extrabold text-white text-base font-mono">Create Governance Policy</h3>
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-white border border-gray-200 rounded-xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <h3 className="font-extrabold text-black text-base font-mono">Create Governance Policy</h3>
               <button
                 onClick={() => setCreateModalOpen(false)}
-                className="text-gray-400 hover:text-white transition font-mono text-sm"
+                className="text-gray-500 hover:text-black transition font-mono text-sm"
               >
                 ✕ Close
               </button>
             </div>
 
             {errorMessage && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-200 rounded-lg text-xs font-mono">
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-mono">
                 {errorMessage}
               </div>
             )}
 
-            <form onSubmit={handleCreate} className="space-y-4 text-xs font-mono text-gray-400">
+            <form onSubmit={handleCreate} className="space-y-4 text-xs font-mono text-gray-600">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[10px] uppercase font-bold text-gray-500 block">Policy Name</label>
@@ -330,7 +330,7 @@ export default function PolicyManager() {
                     placeholder="e.g. Core Risk Limits"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 text-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500"
+                    className="w-full bg-gray-50 border border-gray-200 text-black rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -338,7 +338,7 @@ export default function PolicyManager() {
                   <select
                     value={policyType}
                     onChange={(e) => setPolicyType(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 text-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 cursor-pointer"
+                    className="w-full bg-gray-50 border border-gray-200 text-black rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
                     <option value="risk">Risk Engine Rule</option>
                     <option value="anomaly">Anomaly Detector</option>
@@ -353,7 +353,7 @@ export default function PolicyManager() {
                   value={configJson}
                   onChange={(e) => setConfigJson(e.target.value)}
                   rows={8}
-                  className="w-full bg-slate-900 border border-slate-800 text-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 font-mono text-xs leading-relaxed"
+                  className="w-full bg-gray-50 border border-gray-200 text-black rounded-lg p-3 focus:outline-none focus:border-blue-500 font-mono text-xs leading-relaxed"
                 />
               </div>
 
@@ -361,7 +361,7 @@ export default function PolicyManager() {
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(false)}
-                  className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-gray-300 rounded-lg text-[10px] font-semibold transition"
+                  className="px-4 py-2 border border-gray-200 hover:border-gray-300 text-gray-600 bg-white rounded-lg text-[10px] font-semibold transition"
                 >
                   Cancel
                 </button>
@@ -380,25 +380,25 @@ export default function PolicyManager() {
 
       {/* EDIT Policy Modal */}
       {editingPolicy && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-panel border border-slate-800 rounded-xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-extrabold text-white text-base font-mono">Update Policy: {editingPolicy.name}</h3>
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-white border border-gray-200 rounded-xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <h3 className="font-extrabold text-black text-base font-mono">Update Policy: {editingPolicy.name}</h3>
               <button
                 onClick={() => setEditingPolicy(null)}
-                className="text-gray-400 hover:text-white transition font-mono text-sm"
+                className="text-gray-500 hover:text-black transition font-mono text-sm"
               >
                 ✕ Close
               </button>
             </div>
 
             {errorMessage && (
-              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-200 rounded-lg text-xs font-mono">
+              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-mono">
                 {errorMessage}
               </div>
             )}
 
-            <form onSubmit={handleUpdate} className="space-y-4 text-xs font-mono text-gray-400">
+            <form onSubmit={handleUpdate} className="space-y-4 text-xs font-mono text-gray-600">
               <div className="space-y-1.5">
                 <label className="text-[10px] uppercase font-bold text-gray-500 block">Policy Name</label>
                 <input
@@ -406,7 +406,7 @@ export default function PolicyManager() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-800 text-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-gray-50 border border-gray-200 text-black rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500"
                 />
               </div>
 
@@ -416,7 +416,7 @@ export default function PolicyManager() {
                   value={configJson}
                   onChange={(e) => setConfigJson(e.target.value)}
                   rows={8}
-                  className="w-full bg-slate-900 border border-slate-800 text-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 font-mono text-xs leading-relaxed"
+                  className="w-full bg-gray-50 border border-gray-200 text-black rounded-lg p-3 focus:outline-none focus:border-blue-500 font-mono text-xs leading-relaxed"
                 />
               </div>
 
@@ -424,7 +424,7 @@ export default function PolicyManager() {
                 <button
                   type="button"
                   onClick={() => setEditingPolicy(null)}
-                  className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-gray-300 rounded-lg text-[10px] font-semibold transition"
+                  className="px-4 py-2 border border-gray-200 hover:border-gray-300 text-gray-600 bg-white rounded-lg text-[10px] font-semibold transition"
                 >
                   Cancel
                 </button>
@@ -443,17 +443,17 @@ export default function PolicyManager() {
 
       {/* DEACTIVATE Policy Confirmation Modal */}
       {deactivatingPolicy && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-panel border border-slate-800 rounded-xl p-6 shadow-2xl space-y-4">
-            <h3 className="font-extrabold text-white text-base font-mono">Deactivate Policy?</h3>
-            <p className="text-xs text-gray-400">
-              Are you sure you want to deactivate policy <span className="text-white font-bold">{deactivatingPolicy.name}</span>?
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white border border-gray-200 rounded-xl p-6 shadow-2xl space-y-4">
+            <h3 className="font-extrabold text-black text-base font-mono">Deactivate Policy?</h3>
+            <p className="text-xs text-gray-500">
+              Are you sure you want to deactivate policy <span className="text-black font-bold">{deactivatingPolicy.name}</span>?
               This will disable active runtime governance checks associated with this policy block.
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setDeactivatingPolicy(null)}
-                className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-gray-300 rounded-lg text-xs font-semibold transition"
+                className="px-4 py-2 border border-gray-200 hover:border-gray-300 text-gray-600 bg-white rounded-lg text-xs font-semibold shadow-sm transition"
               >
                 Cancel
               </button>

@@ -6,7 +6,7 @@
 
 @layer base {
   body {
-    @apply bg-background text-gray-100 font-sans antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white;
+    @apply bg-background text-gray-900 font-sans antialiased overflow-x-hidden selection:bg-gray-900 selection:text-white;
   }
 }
 
@@ -16,36 +16,37 @@
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #030712;
+  background: #f8fafc;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #cbd5e1;
   border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3b82f6;
+  background: #94a3b8;
 }
 
 /* Smooth glass effect helper */
 .glassmorphism {
-  background: rgba(11, 21, 40, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
-/* Glowing text effects */
+/* Glowing text effects -> Soft modern colors */
 .text-glow-green {
-  text-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+  color: #059669;
 }
 .text-glow-amber {
-  text-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+  color: #d97706;
 }
 .text-glow-rose {
-  text-shadow: 0 0 8px rgba(244, 63, 94, 0.4);
+  color: #e11d48;
 }
 .text-glow-blue {
-  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+  color: #2563eb;
 }
 
 /* Custom pulse animations for status signals */

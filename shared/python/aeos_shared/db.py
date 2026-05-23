@@ -7,7 +7,18 @@ from typing import AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
+import json
+
 _pool: asyncpg.Pool | None = None
+
+async def _init_connection(conn):
+    """Set up codecs for json and jsonb"""
+    await conn.set_type_codec(
+        'json', encoder=json.dumps, decoder=json.loads, schema='pg_catalog'
+    )
+    await conn.set_type_codec(
+        'jsonb', encoder=json.dumps, decoder=json.loads, schema='pg_catalog'
+    )
 
 async def init_db_pool() -> asyncpg.Pool:
     """Initialize the global asyncpg connection pool."""
@@ -17,7 +28,7 @@ async def init_db_pool() -> asyncpg.Pool:
         if not db_url:
             raise RuntimeError("DATABASE_URL environment variable is not set.")
         logger.info("Initializing asyncpg connection pool...")
-        _pool = await asyncpg.create_pool(db_url)
+        _pool = await asyncpg.create_pool(db_url, init=_init_connection)
     return _pool
 
 async def close_db_pool():

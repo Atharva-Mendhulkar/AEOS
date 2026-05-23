@@ -95,6 +95,27 @@ async def log_audit_event(
 # ---------------------------------------------------------------------------
 
 async def run_recovery_background(workflow_id: str, step_id: str, incident_id: str, error: str, classification: str):
+    # Emit active state for recovery agent
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"http://observability-service:8040/observability/events",
+                json={
+                    "type": "agent.state_changed",
+                    "payload": {
+                        "agent_role": "recovery",
+                        "status": "active",
+                        "active_steps": 1,
+                        "incident_id": incident_id,
+                        "workflow_id": workflow_id
+                    },
+                    "emitted_at": datetime.now(timezone.utc).isoformat()
+                },
+                timeout=2.0
+            )
+    except Exception:
+        pass
+
     try:
         # 1. Log classification event to Memory Agent Audit Trail
         await log_audit_event(
@@ -169,7 +190,7 @@ async def run_recovery_background(workflow_id: str, step_id: str, incident_id: s
                 await conn.close()
                 logger.error(f"Step {step_id} not found in database. Recovery aborted.")
                 return
-
+ 
         # 2. Permanent failure path (or transient failure exceeding retries)
         logger.info(f"Initiating replanning flow for workflow {workflow_id} due to step {step_id} failure.")
         
@@ -235,6 +256,27 @@ async def run_recovery_background(workflow_id: str, step_id: str, incident_id: s
                 
     except Exception as e:
         logger.error(f"Unexpected error in recovery background routine: {e}")
+    finally:
+        # Emit idle state for recovery agent
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.post(
+                    f"http://observability-service:8040/observability/events",
+                    json={
+                        "type": "agent.state_changed",
+                        "payload": {
+                            "agent_role": "recovery",
+                            "status": "idle",
+                            "active_steps": 0,
+                            "incident_id": incident_id,
+                            "workflow_id": workflow_id
+                        },
+                        "emitted_at": datetime.now(timezone.utc).isoformat()
+                    },
+                    timeout=2.0
+                )
+        except Exception:
+            pass
 
 # ---------------------------------------------------------------------------
 # API Endpoints

@@ -244,7 +244,7 @@ async def execute_plan_generation_flow(req: GeneratePlanRequest):
             try:
                 await client.post(
                     f"{MEMORY_AGENT_URL}/memory/plans",
-                    json={"workflow_id": workflow_id, "steps": steps}
+                    json={"workflow_id": workflow_id, "plan": {"steps": steps}}
                 )
                 logger.info("Plan successfully persisted to Memory Agent")
             except Exception as e:

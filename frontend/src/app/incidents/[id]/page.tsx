@@ -57,14 +57,10 @@ export default function IncidentDetail() {
     setCheckingIntegrity(true);
     setIntegrityStatus(null);
     try {
-      // Direct call to validation endpoint
-      const res = await fetch("/api/v1/observability/audit/validate-chain");
-      // Wait, let's proxy through /api/v1/ which nextConfig proxies to API Gateway,
-      // and in API Gateway let's check if it exists:
-      // In Gateway /api/v1/observability/audit/validate-chain or direct.
-      // Wait, the API Gateway proxies it to Observability service. Let's make sure it's valid.
-      const data = await res.json();
-      setIntegrityStatus(data);
+      // Direct call to validation endpoint using apiClient to include auth headers
+      const res = await apiClient.get("/api/v1/observability/audit/validate-chain");
+      // Using apiClient.get handles json parsing automatically
+      setIntegrityStatus(res);
     } catch (e: any) {
       console.error(e);
       setIntegrityStatus({ status: "error", detail: e.message || "Failed verification connection." });
@@ -80,7 +76,7 @@ export default function IncidentDetail() {
   if (!incident) {
     return (
       <div className="py-20 flex flex-col items-center justify-center gap-4">
-        <div className="w-10 h-10 border-4 border-t-blue-500 border-r-transparent border-slate-800 rounded-full animate-spin"></div>
+        <div className="w-10 h-10 border-4 border-t-blue-500 border-r-transparent border-gray-200 rounded-full animate-spin"></div>
         <p className="text-xs text-gray-500 font-mono">Loading incident telemetry...</p>
       </div>
     );
@@ -120,13 +116,13 @@ export default function IncidentDetail() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Link href="/dashboard" className="text-xs text-blue-400 hover:underline flex items-center gap-1 font-mono">
+            <Link href="/dashboard" className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-mono">
               &larr; Back to Telemetry Streams
             </Link>
           </div>
-          <h1 className="text-2xl font-extrabold tracking-tight text-white flex items-center gap-3">
+          <h1 className="text-2xl font-extrabold tracking-tight text-black flex items-center gap-3">
             <span>Incident Console</span>
-            <span className="text-xs font-mono bg-slate-900 border border-slate-850 px-2 py-1 rounded text-gray-400 font-normal">
+            <span className="text-xs font-mono bg-gray-50 border border-gray-200 px-2 py-1 rounded text-gray-600 font-normal shadow-sm">
               ID: {incidentId}
             </span>
           </h1>
@@ -136,16 +132,16 @@ export default function IncidentDetail() {
         <button
           onClick={runIntegrityCheck}
           disabled={checkingIntegrity}
-          className="px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-xs font-mono text-gray-300 transition duration-150 flex items-center gap-2 hover:border-slate-700 disabled:opacity-40"
+          className="px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono text-gray-700 transition duration-150 flex items-center gap-2 hover:border-gray-300 disabled:opacity-40 shadow-sm"
         >
           {checkingIntegrity ? (
             <>
-              <div className="w-3.5 h-3.5 border-2 border-t-blue-500 border-r-transparent border-slate-700 rounded-full animate-spin"></div>
+              <div className="w-3.5 h-3.5 border-2 border-t-blue-500 border-r-transparent border-gray-200 rounded-full animate-spin"></div>
               <span>Verifying Chaining Linkages...</span>
             </>
           ) : (
             <>
-              <svg className="w-4 h-4 text-glowBlue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
               <span>Verify Cryptographic Chain</span>
@@ -157,12 +153,12 @@ export default function IncidentDetail() {
       {/* Integrity Report Alert */}
       {integrityStatus && (
         <div
-          className={`p-4 rounded-xl border flex items-start gap-3 font-mono text-xs ${
+          className={`p-4 rounded-xl border flex items-start gap-3 font-mono text-xs shadow-sm ${
             integrityStatus.status === "valid"
-              ? "bg-green-500/10 border-green-500/20 text-green-300"
+              ? "bg-green-50 border-green-200 text-green-800"
               : integrityStatus.status === "tampered"
-              ? "bg-red-500/10 border-red-500/20 text-red-300"
-              : "bg-amber-500/10 border-amber-500/20 text-amber-300"
+              ? "bg-red-50 border-red-200 text-red-800"
+              : "bg-amber-50 border-amber-200 text-amber-800"
           }`}
         >
           <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -189,38 +185,38 @@ export default function IncidentDetail() {
 
       {/* Incident Metadata & Workflow Stats */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="glassmorphism p-6 rounded-xl space-y-4 lg:col-span-1">
-          <h3 className="font-bold text-white tracking-wide text-sm font-mono border-b border-slate-800 pb-2.5">
+        <div className="glassmorphism p-6 rounded-xl space-y-4 lg:col-span-1 border border-gray-200 shadow-sm">
+          <h3 className="font-bold text-black tracking-wide text-sm font-mono border-b border-gray-200 pb-2.5">
             Operational Telemetry
           </h3>
           <div className="grid grid-cols-2 gap-4 text-xs font-mono">
             <div>
               <span className="text-gray-500 block uppercase">Severity</span>
-              <span className="text-white font-bold text-sm block mt-1 uppercase">{incident.severity}</span>
+              <span className="text-black font-bold text-sm block mt-1 uppercase">{incident.severity}</span>
             </div>
             <div>
               <span className="text-gray-500 block uppercase">Status</span>
-              <span className="text-white font-bold text-sm block mt-1 uppercase">{incident.status}</span>
+              <span className="text-black font-bold text-sm block mt-1 uppercase">{incident.status}</span>
             </div>
             <div>
               <span className="text-gray-500 block uppercase">Confidence</span>
-              <span className="text-white font-bold text-sm block mt-1">{(incident.confidence_score * 100).toFixed(0)}%</span>
+              <span className="text-black font-bold text-sm block mt-1">{(incident.confidence_score * 100).toFixed(0)}%</span>
             </div>
             <div>
               <span className="text-gray-500 block uppercase">Workflow Connected</span>
-              <span className="text-blue-400 font-bold block mt-1 truncate">
+              <span className="text-blue-600 font-bold block mt-1 truncate">
                 {incident.workflow_id ? incident.workflow_id.substring(0, 8) + "..." : "None"}
               </span>
             </div>
             <div className="col-span-2">
               <span className="text-gray-500 block uppercase">Root Signature</span>
-              <span className="text-gray-250 block mt-1 bg-slate-900 border border-slate-850 p-2.5 rounded font-mono text-[11px] leading-relaxed">
+              <span className="text-gray-800 block mt-1 bg-gray-50 border border-gray-200 p-2.5 rounded font-mono text-[11px] leading-relaxed shadow-inner">
                 {incident.root_signature || "Analysis processing in queue..."}
               </span>
             </div>
             <div className="col-span-2">
               <span className="text-gray-500 block uppercase">Ingestion Reference File</span>
-              <span className="text-gray-300 block mt-1 font-mono text-[11px] truncate">
+              <span className="text-gray-600 block mt-1 font-mono text-[11px] truncate">
                 {incident.source_input_ref || "Direct Text entry"}
               </span>
             </div>
@@ -228,15 +224,15 @@ export default function IncidentDetail() {
         </div>
 
         {/* Custom Visual DAG Workflow Chart */}
-        <div className="glassmorphism p-6 rounded-xl space-y-4 lg:col-span-2 flex flex-col justify-between">
+        <div className="glassmorphism p-6 rounded-xl space-y-4 lg:col-span-2 flex flex-col justify-between border border-gray-200 shadow-sm">
           <div>
-            <h3 className="font-bold text-white tracking-wide text-sm font-mono border-b border-slate-800 pb-2.5 flex items-center justify-between">
+            <h3 className="font-bold text-black tracking-wide text-sm font-mono border-b border-gray-200 pb-2.5 flex items-center justify-between">
               <span>DAG Execution Visualizer</span>
-              <span className="text-xs text-gray-400 bg-slate-900 border border-slate-850 px-2 py-0.5 rounded font-normal">
+              <span className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded font-normal shadow-sm">
                 {workflow?.status?.toUpperCase() || "PENDING"}
               </span>
             </h3>
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-gray-500 mt-2">
               Layered Directed Acyclic Graph tracking concurrent execution of planner steps.
             </p>
           </div>
@@ -246,7 +242,7 @@ export default function IncidentDetail() {
               No workflow execution steps generated.
             </div>
           ) : (
-            <div className="relative mt-6 border border-slate-850/80 bg-slate-950/20 p-6 rounded-xl overflow-x-auto min-h-[300px] flex flex-col justify-center">
+            <div className="relative mt-6 border border-gray-200 bg-gray-50 p-6 rounded-xl overflow-x-auto min-h-[300px] flex flex-col justify-center shadow-inner">
               {/* Layers wrapper */}
               <div className="flex justify-between items-center gap-12 min-w-[600px] relative">
                 {stepsLayers.map((layer, lIdx) => (
@@ -255,23 +251,23 @@ export default function IncidentDetail() {
                       const status = (step.status || "pending").toLowerCase();
                       const statusColor =
                         status === "completed"
-                          ? "border-glowEmerald bg-glowEmerald/5 text-glowEmerald shadow-glowGreen"
+                          ? "border-green-500 bg-green-50 text-green-600 shadow-sm"
                           : status === "running"
-                          ? "border-blue-500 bg-blue-500/5 text-blue-400 animate-pulse shadow-glow"
+                          ? "border-blue-500 bg-blue-50 text-blue-600 animate-pulse shadow-sm"
                           : status === "failed"
-                          ? "border-glowRose bg-glowRose/5 text-glowRose shadow-glowRed"
+                          ? "border-red-500 bg-red-50 text-red-600 shadow-sm"
                           : status === "suspended"
-                          ? "border-glowAmber bg-glowAmber/5 text-glowAmber shadow-glowOrange"
-                          : "border-slate-800 bg-slate-900/50 text-gray-400";
+                          ? "border-amber-500 bg-amber-50 text-amber-600 shadow-sm"
+                          : "border-gray-300 bg-white text-gray-500 shadow-sm";
 
                       return (
                         <div
                           key={step.id}
-                          className={`w-40 border p-3 rounded-lg flex flex-col justify-between font-mono text-[10px] glassmorphism transition-all duration-300 ${statusColor}`}
+                          className={`w-40 border p-3 rounded-lg flex flex-col justify-between font-mono text-[10px] transition-all duration-300 ${statusColor}`}
                         >
                           <div className="font-extrabold uppercase truncate tracking-wider">{step.agent_type}</div>
-                          <div className="text-gray-300 mt-1 truncate">{step.action.tool}</div>
-                          <div className="mt-2 pt-1.5 border-t border-white/5 flex items-center justify-between text-[8px] text-gray-400">
+                          <div className="mt-1 truncate opacity-80">{step.action.tool}</div>
+                          <div className="mt-2 pt-1.5 border-t border-current/20 flex items-center justify-between text-[8px] opacity-70">
                             <span>ID: {step.id.substring(0, 4)}...</span>
                             <span className="uppercase font-bold">{step.status}</span>
                           </div>
@@ -293,8 +289,8 @@ export default function IncidentDetail() {
       </div>
 
       {/* Audit Logs Timeline */}
-      <div className="glassmorphism p-6 rounded-xl space-y-4">
-        <h3 className="font-bold text-white tracking-wide text-sm font-mono border-b border-slate-800 pb-2.5">
+      <div className="glassmorphism p-6 rounded-xl space-y-4 border border-gray-200 shadow-sm">
+        <h3 className="font-bold text-black tracking-wide text-sm font-mono border-b border-gray-200 pb-2.5">
           Tamper-Evident Incident History
         </h3>
 
@@ -307,22 +303,22 @@ export default function IncidentDetail() {
             No audit logs captured for this incident.
           </div>
         ) : (
-          <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
+          <div className="space-y-4 relative before:absolute before:left-3 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-200">
             {auditLogs.map((log: any, idx: number) => {
               const risk = log.risk_score || 0;
               return (
                 <div key={log.id} className="relative pl-10 flex flex-col md:flex-row md:items-start gap-4">
                   {/* Timeline point */}
-                  <span className="absolute left-1.5 top-2 w-3.5 h-3.5 rounded-full border-4 border-slate-900 bg-blue-500 z-10"></span>
+                  <span className="absolute left-1.5 top-2 w-3.5 h-3.5 rounded-full border-4 border-white bg-blue-500 z-10 shadow-sm"></span>
 
                   {/* Log Content Card */}
-                  <div className="glassmorphism p-4 rounded-xl flex-1 space-y-2 relative border border-slate-850 hover:border-slate-800 transition">
-                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-850 pb-2">
+                  <div className="glassmorphism p-4 rounded-xl flex-1 space-y-2 relative border border-gray-200 hover:border-gray-300 transition shadow-sm bg-white/50">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 pb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-white uppercase bg-slate-850 px-2.5 py-1 rounded font-mono">
+                        <span className="text-xs font-bold text-black uppercase bg-gray-100 border border-gray-200 px-2.5 py-1 rounded font-mono shadow-sm">
                           {log.agent_identity}
                         </span>
-                        <span className="text-xs font-mono text-gray-400 font-bold">
+                        <span className="text-xs font-mono text-gray-500 font-bold">
                           {log.event_type}
                         </span>
                       </div>
@@ -333,10 +329,10 @@ export default function IncidentDetail() {
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
                               risk >= 9.0
-                                ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                                ? "bg-red-50 text-red-600 border border-red-200"
                                 : risk >= 7.0
-                                ? "bg-orange-500/10 text-orange-400 border border-orange-500/20"
-                                : "bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                                ? "bg-orange-50 text-orange-600 border border-orange-200"
+                                : "bg-blue-50 text-blue-600 border border-blue-200"
                             }`}
                           >
                             Risk: {risk.toFixed(1)}
@@ -345,10 +341,10 @@ export default function IncidentDetail() {
                         
                         {/* Link Hash Verification Emblem */}
                         <div
-                          className="flex items-center gap-1.5 px-2 py-0.5 bg-slate-950/40 rounded border border-slate-800 text-[10px] font-mono text-gray-400"
+                          className="flex items-center gap-1.5 px-2 py-0.5 bg-gray-50 rounded border border-gray-200 text-[10px] font-mono text-gray-500 shadow-sm"
                           title={`Prev Hash: ${log.prev_entry_hash || "genesis"}`}
                         >
-                          <svg className="w-3 h-3 text-glowEmerald" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-3 h-3 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                           </svg>
                           <span>Chained</span>
@@ -356,25 +352,25 @@ export default function IncidentDetail() {
                       </div>
                     </div>
 
-                    <p className="text-xs text-gray-250 leading-relaxed font-mono">
+                    <p className="text-xs text-gray-700 leading-relaxed font-mono">
                       {log.action_description}
                     </p>
 
                     {/* Expandable Inputs/Outputs details */}
                     {(log.inputs || log.outputs) && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-850/50 text-[10px] font-mono text-gray-400">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3 pt-3 border-t border-gray-200 text-[10px] font-mono text-gray-500">
                         {log.inputs && Object.keys(log.inputs).length > 0 && (
-                          <div className="bg-slate-950/20 p-2 rounded border border-slate-900">
+                          <div className="bg-gray-50 p-2 rounded border border-gray-200 shadow-inner">
                             <span className="text-gray-500 block uppercase font-bold mb-1">Inputs</span>
-                            <pre className="overflow-x-auto text-[10px] leading-relaxed text-gray-300">
+                            <pre className="overflow-x-auto text-[10px] leading-relaxed text-gray-700">
                               {JSON.stringify(log.inputs, null, 2)}
                             </pre>
                           </div>
                         )}
                         {log.outputs && Object.keys(log.outputs).length > 0 && (
-                          <div className="bg-slate-950/20 p-2 rounded border border-slate-900">
+                          <div className="bg-gray-50 p-2 rounded border border-gray-200 shadow-inner">
                             <span className="text-gray-500 block uppercase font-bold mb-1">Outputs</span>
-                            <pre className="overflow-x-auto text-[10px] leading-relaxed text-gray-300">
+                            <pre className="overflow-x-auto text-[10px] leading-relaxed text-gray-700">
                               {JSON.stringify(log.outputs, null, 2)}
                             </pre>
                           </div>

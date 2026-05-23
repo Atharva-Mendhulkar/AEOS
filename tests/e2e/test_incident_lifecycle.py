@@ -9,11 +9,14 @@ API_BASE = "http://localhost:8000/api/v1"
 async def test_full_incident_lifecycle():
     headers = get_auth_headers()
     async with httpx.AsyncClient(headers=headers) as client:
-        # 1. Submit incident (simulate text ingestion)
+        # 1. Submit incident (simulate text ingestion with unique content to avoid duplicate detection)
+        import uuid
+        unique_content = f"System is experiencing high CPU load: {uuid.uuid4()}"
         payload = {"format": "text", "metadata": '{"source": "test"}'}
-        files = {"file": ("test.txt", b"System is experiencing high CPU load", "text/plain")}
+        files = {"file": ("test.txt", unique_content.encode('utf-8'), "text/plain")}
         
         response = await client.post(f"{API_BASE}/incidents/ingest", data=payload, files=files)
+
         
         assert response.status_code == 200, f"Failed with status {response.status_code} and text {response.text}"
             
@@ -34,3 +37,5 @@ async def test_full_incident_lifecycle():
             await asyncio.sleep(1)
             
         assert classified, "Incident classification timed out"
+
+

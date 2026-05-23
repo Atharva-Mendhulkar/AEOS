@@ -66,16 +66,16 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar */}
-      <aside className="w-64 border-r border-slate-800 bg-panel flex flex-col justify-between shrink-0">
+      <aside className="w-64 border-r border-gray-200 bg-white flex flex-col justify-between shrink-0 shadow-sm z-10 relative">
         <div>
           {/* Logo */}
-          <div className="h-16 px-6 border-b border-slate-800 flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-glow">
+          <div className="h-16 px-6 border-b border-gray-200 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-black flex items-center justify-center">
               <span className="text-white font-extrabold text-sm tracking-widest">AE</span>
             </div>
             <div>
-              <h1 className="font-extrabold text-base tracking-wider text-white">AEOS Control</h1>
-              <p className="text-[10px] text-gray-400 font-mono">v1.2.0-STABLE</p>
+              <h1 className="font-extrabold text-base tracking-wider text-black">AEOS Control</h1>
+              <p className="text-[10px] text-gray-500 font-mono">v1.2.0-STABLE</p>
             </div>
           </div>
 
@@ -89,8 +89,8 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
                   href={item.href}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
                     isActive
-                      ? "bg-blue-600/10 text-blue-400 border-l-4 border-blue-500 pl-3"
-                      : "text-gray-400 hover:bg-slate-800 hover:text-gray-200"
+                      ? "bg-gray-100 text-black border-l-4 border-black pl-3"
+                      : "text-gray-500 hover:bg-gray-50 hover:text-black"
                   }`}
                 >
                   {item.icon}
@@ -102,9 +102,9 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
         </div>
 
         {/* System connection Status */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/40 space-y-3">
+        <div className="p-4 border-t border-gray-200 bg-gray-50 space-y-3">
           <div className="flex items-center justify-between text-xs font-mono">
-            <span className="text-gray-400">WS Gateway</span>
+            <span className="text-gray-500">WS Gateway</span>
             <div className="flex items-center gap-1.5">
               <span
                 className={`w-2.5 h-2.5 rounded-full ${
@@ -138,7 +138,7 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
               <select
                 value={user?.role || "visitor"}
                 onChange={handleRoleChange}
-                className="w-full bg-slate-900 border border-slate-800 text-xs font-mono text-gray-300 rounded px-2.5 py-1.5 focus:outline-none focus:border-blue-500 cursor-pointer appearance-none"
+                className="w-full bg-white border border-gray-300 text-xs font-mono text-black rounded px-2.5 py-1.5 focus:outline-none focus:border-black cursor-pointer appearance-none shadow-sm"
               >
                 <option value="admin">Administrator</option>
                 <option value="operator">Operator</option>
@@ -156,17 +156,17 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <header className="h-16 border-b border-slate-800 flex items-center justify-between px-8 bg-panel shrink-0">
+      <main className="flex-1 flex flex-col min-w-0 overflow-y-auto bg-gray-50/30">
+        <header className="h-16 border-b border-gray-200 flex items-center justify-between px-8 bg-white/80 backdrop-blur-md shrink-0 sticky top-0 z-10">
           <div className="flex items-center gap-4">
-            <h2 className="text-lg font-bold text-white tracking-tight capitalize">
+            <h2 className="text-lg font-bold text-black tracking-tight capitalize">
               {pathname === "/" ? "Home" : pathname.split("/")[1].replace("-", " ")}
             </h2>
           </div>
-          <div className="flex items-center gap-3 font-mono text-xs text-gray-400 bg-slate-900 border border-slate-800/80 px-3 py-1.5 rounded-md">
-            <span className="w-1.5 h-1.5 rounded-full bg-glowEmerald pulse-glow"></span>
+          <div className="flex items-center gap-3 font-mono text-xs text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-md shadow-sm">
+            <span className="w-1.5 h-1.5 rounded-full bg-green-500 pulse-glow"></span>
             <span>Operator Identity:</span>
-            <span className="text-white font-bold">{user?.sub || "loading..."}</span>
+            <span className="text-black font-bold">{user?.sub || "loading..."}</span>
           </div>
         </header>
         <div className="flex-1 p-8 space-y-6">

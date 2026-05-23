@@ -33,6 +33,26 @@ redis.on("error", (err: any) => logger.error("Redis Error", err));
 dbPool.on("connect", () => logger.info("Coordinator connected to PostgreSQL"));
 dbPool.on("error", (err: any) => logger.error("PostgreSQL Pool Error", err));
 
+// Helper: Emit agent state changed event to Observability
+async function emitAgentState(agentRole: string, status: string, activeSteps: number, incidentId?: string, workflowId?: string) {
+  try {
+    await axios.post(`${observabilityUrl}/observability/events`, {
+      type: "agent.state_changed",
+      payload: {
+        agent_role: agentRole,
+        status: status,
+        active_steps: activeSteps,
+        incident_id: incidentId,
+        workflow_id: workflowId
+      },
+      emitted_at: new Date().toISOString()
+    });
+    logger.info(`Emitted agent.state_changed for ${agentRole}: ${status}`);
+  } catch (err: any) {
+    logger.warn(`Failed to emit agent.state_changed event for ${agentRole}: ${err.message}`);
+  }
+}
+
 // Helper: SLA active step logging
 async function activateStep(workflowId: string, stepId: string) {
   const startTime = Date.now();
@@ -106,6 +126,9 @@ async function activateStep(workflowId: string, stepId: string) {
     await redis.publish(`agent:${step.agent_type}:tasks`, JSON.stringify(taskPayload));
     logger.info(`Published task to agent:${step.agent_type}:tasks for step ${stepId}`);
 
+    // Emit agent.state_changed (active) for step.agent_type
+    await emitAgentState(step.agent_type, "active", 1, incidentId, workflowId);
+
     const duration = (Date.now() - startTime) / 1000;
     if (duration > 2.0) {
       logger.warn(`SLA warning: Step ${stepId} activation took ${duration} seconds (limit: 2s)`);
@@ -118,6 +141,9 @@ async function activateStep(workflowId: string, stepId: string) {
         sequence: 2,
         payload: {
           workflow_id: workflowId,
+          incident_id: incidentId,
+          agent_identity: "coordinator",
+          action_description: `Starting step: ${step.action.tool}`,
           step_id: stepId,
           agent_type: step.agent_type,
           action: step.action,
@@ -184,6 +210,9 @@ app.post("/coordinator/route-input", async (req: Request, res: Response) => {
     await redis.publish("agent:incident_analysis:tasks", JSON.stringify(task));
     logger.info(`Task published to agent:incident_analysis:tasks. Task ID: ${taskId}`);
 
+    // Emit agent.state_changed (active) for analysis agent
+    await emitAgentState("analysis", "active", 1, input_id, workflowId);
+
     const dispatchedAt = new Date().toISOString();
     
     // Emit routing.dispatched event to Observability Layer
@@ -236,6 +265,16 @@ app.post("/coordinator/plan-ready", async (req: Request, res: Response) => {
 
   try {
     await client.query("BEGIN");
+
+    // Retrieve incident_id to include in event
+    const wfResult = await client.query("SELECT incident_id FROM workflows WHERE id = $1", [workflow_id]);
+    const incidentId = wfResult.rows[0]?.incident_id;
+
+    // Emit agent.state_changed (idle) for planner agent
+    await emitAgentState("planner", "idle", 0, incidentId, workflow_id);
+
+    // Emit agent.state_changed (active) for engine agent
+    await emitAgentState("engine", "active", steps.length, incidentId, workflow_id);
 
     // 1. Update workflow status to executing and store the plan JSON
     const planJSON = JSON.stringify({ steps });
@@ -311,6 +350,9 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
     const resolvedInputId = req.body.incident_id || req.body.task_id;
 
     logger.info(`Received classification callback for task ${task_id}, root_signature: ${root_signature}`);
+
+    // Emit agent.state_changed (idle) for analysis agent
+    await emitAgentState("analysis", "idle", 0, resolvedInputId, workflow_id);
 
     const client = await dbPool.connect();
     try {
@@ -395,8 +437,16 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
         logger.warn(`Failed to emit classified event: ${err.message}`);
       }
 
+      if (requires_escalation) {
+        // Emit agent.state_changed (active) for escalation agent
+        await emitAgentState("escalation", "active", 1, incidentId, workflow_id);
+      }
+
       // Invoke Planner Agent if not escalated
       if (!requires_escalation) {
+        // Emit agent.state_changed (active) for planner agent
+        await emitAgentState("planner", "active", 1, incidentId, workflow_id);
+
         axios.post(`${plannerAgentUrl}/planner/generate`, {
           incident_id: incidentId,
           severity: finalSeverity,
@@ -418,6 +468,16 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
     logger.info(`Received execution callback for step ${step_id} completed in workflow ${workflow_id}`);
     
     try {
+      const wfResult = await dbPool.query("SELECT incident_id FROM workflows WHERE id = $1", [workflow_id]);
+      const incidentId = wfResult.rows[0]?.incident_id;
+
+      // Get step agent type to emit idle state
+      const stepDetails = await dbPool.query("SELECT agent_type FROM workflow_steps WHERE id = $1", [step_id]);
+      const agentType = stepDetails.rows[0]?.agent_type;
+      if (agentType) {
+        await emitAgentState(agentType, "idle", 0, incidentId, workflow_id);
+      }
+
       // Update step status in DB
       await dbPool.query(
         "UPDATE workflow_steps SET status = 'completed', output = $1, updated_at = NOW() WHERE id = $2",
@@ -429,7 +489,14 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
         await axios.post(`${observabilityUrl}/observability/events`, {
           type: "step.completed",
           sequence: 3,
-          payload: { workflow_id, step_id, output },
+          payload: { 
+            workflow_id, 
+            step_id, 
+            output,
+            incident_id: incidentId,
+            agent_identity: "coordinator",
+            action_description: `Step ${step_id} completed successfully.`
+          },
           emitted_at: new Date().toISOString()
         });
       } catch (err: any) {
@@ -462,6 +529,10 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
 
       if (parseInt(activeOrPending.rows[0].count) === 0) {
         logger.info(`All steps completed for workflow ${workflow_id}. Marking workflow as completed.`);
+        
+        // Emit engine idle state
+        await emitAgentState("engine", "idle", 0, incidentId, workflow_id);
+
         await dbPool.query(
           "UPDATE workflows SET status = 'completed', updated_at = NOW() WHERE id = $1",
           [workflow_id]
@@ -479,7 +550,12 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
           await axios.post(`${observabilityUrl}/observability/events`, {
             type: "workflow.completed",
             sequence: 4,
-            payload: { workflow_id },
+            payload: { 
+              workflow_id,
+              incident_id: incidentId,
+              agent_identity: "coordinator",
+              action_description: `Workflow ${workflow_id} completed successfully.`
+            },
             emitted_at: new Date().toISOString()
           });
         } catch (err: any) {
@@ -505,6 +581,16 @@ app.post("/coordinator/step-failed", async (req: Request, res: Response) => {
   if (workflow_id && step_id) {
     logger.error(`Workflow step ${step_id} failed in workflow ${workflow_id}: ${error}`);
     try {
+      const wfResult = await dbPool.query("SELECT incident_id FROM workflows WHERE id = $1", [workflow_id]);
+      const incidentId = wfResult.rows[0]?.incident_id;
+
+      // Get step agent type to emit blocked state
+      const stepDetails = await dbPool.query("SELECT agent_type FROM workflow_steps WHERE id = $1", [step_id]);
+      const agentType = stepDetails.rows[0]?.agent_type;
+      if (agentType) {
+        await emitAgentState(agentType, "blocked", 0, incidentId, workflow_id);
+      }
+
       await dbPool.query(
         "UPDATE workflow_steps SET status = 'failed', updated_at = NOW() WHERE id = $1",
         [step_id]
@@ -515,7 +601,14 @@ app.post("/coordinator/step-failed", async (req: Request, res: Response) => {
         await axios.post(`${observabilityUrl}/observability/events`, {
           type: "step.failed",
           sequence: 3,
-          payload: { workflow_id, step_id, error },
+          payload: { 
+            workflow_id, 
+            step_id, 
+            error, 
+            incident_id: incidentId,
+            agent_identity: "coordinator",
+            action_description: `Step ${step_id} failed.`
+          },
           emitted_at: new Date().toISOString()
         });
       } catch (err: any) {
@@ -530,6 +623,10 @@ app.post("/coordinator/step-failed", async (req: Request, res: Response) => {
 
       if (parseInt(activeOrPending.rows[0].count) === 0) {
         logger.warn(`Workflow ${workflow_id} ended in failure.`);
+        
+        // Emit engine idle state
+        await emitAgentState("engine", "idle", 0, incidentId, workflow_id);
+
         await dbPool.query(
           "UPDATE workflows SET status = 'failed', updated_at = NOW() WHERE id = $1",
           [workflow_id]
@@ -548,7 +645,13 @@ app.post("/coordinator/step-failed", async (req: Request, res: Response) => {
           await axios.post(`${observabilityUrl}/observability/events`, {
             type: "workflow.completed",
             sequence: 4,
-            payload: { workflow_id, success: false },
+            payload: { 
+              workflow_id, 
+              success: false, 
+              incident_id: incidentId,
+              agent_identity: "coordinator",
+              action_description: `Workflow ${workflow_id} failed.`
+            },
             emitted_at: new Date().toISOString()
           });
         } catch (err: any) {
@@ -564,6 +667,8 @@ app.post("/coordinator/step-failed", async (req: Request, res: Response) => {
   } else {
     // Classification step failed fallback
     logger.error(`Task ${task_id} failed: ${error}`);
+    // Emit analysis blocked state
+    await emitAgentState("analysis", "blocked", 0, inputId);
     try {
       await dbPool.query(
         "UPDATE multimodal_inputs SET processing_status = 'failed' WHERE id = $1",

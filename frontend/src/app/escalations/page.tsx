@@ -70,8 +70,8 @@ export default function EscalationQueue() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-white">Manual Intervention & Escalations</h1>
-        <p className="text-sm text-gray-400 mt-1">Review actions suspended by runtime policy governance score limit gates.</p>
+        <h1 className="text-2xl font-extrabold tracking-tight text-black">Manual Intervention & Escalations</h1>
+        <p className="text-sm text-gray-500 mt-1">Review actions suspended by runtime policy governance score limit gates.</p>
       </div>
 
       {errorMessage && (
@@ -83,18 +83,18 @@ export default function EscalationQueue() {
 
       {!escalations ? (
         <div className="py-20 flex flex-col items-center justify-center gap-4">
-          <div className="w-10 h-10 border-4 border-t-blue-500 border-r-transparent border-slate-800 rounded-full animate-spin"></div>
+          <div className="w-10 h-10 border-4 border-t-blue-500 border-r-transparent border-gray-200 rounded-full animate-spin"></div>
           <p className="text-xs text-gray-500 font-mono">Querying governance engine...</p>
         </div>
       ) : list.length === 0 ? (
-        <div className="py-20 text-center space-y-4 glassmorphism rounded-xl border border-slate-850/80">
-          <div className="text-gray-600 inline-block p-4 bg-slate-900 border border-slate-850 rounded-full">
-            <svg className="w-8 h-8 text-glowEmerald" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="py-20 text-center space-y-4 glassmorphism rounded-xl border border-gray-200">
+          <div className="text-gray-400 inline-block p-4 bg-gray-50 border border-gray-200 rounded-full">
+            <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <h3 className="font-bold text-white text-sm">Escalation Queue Clear</h3>
-          <p className="text-xs text-gray-400 max-w-sm mx-auto">No steps are currently suspended or waiting for manual intervention.</p>
+          <h3 className="font-bold text-black text-sm">Escalation Queue Clear</h3>
+          <p className="text-xs text-gray-500 max-w-sm mx-auto">No steps are currently suspended or waiting for manual intervention.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -103,7 +103,7 @@ export default function EscalationQueue() {
             return (
               <div
                 key={esc.id}
-                className="glassmorphism p-6 rounded-xl border border-slate-800 flex flex-col justify-between gap-5 relative hover:border-slate-700 transition"
+                className="glassmorphism p-6 rounded-xl border border-gray-200 flex flex-col justify-between gap-5 relative hover:border-gray-300 transition shadow-sm"
               >
                 {/* Risk score pill badge */}
                 <div className="absolute top-6 right-6">
@@ -128,28 +128,28 @@ export default function EscalationQueue() {
                     </span>
                   </div>
 
-                  <h3 className="font-bold text-white tracking-wide text-sm font-mono truncate max-w-[70%]">
+                  <h3 className="font-bold text-black tracking-wide text-sm font-mono truncate max-w-[70%]">
                     {esc.incident_summary}
                   </h3>
 
-                  <div className="space-y-1 text-[11px] font-mono text-gray-400 bg-slate-950/40 p-3 rounded-lg border border-slate-900">
+                  <div className="space-y-1 text-[11px] font-mono text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200">
                     <div>
                       <span className="text-gray-500">Step ID: </span>
-                      <span className="text-gray-300">{esc.step_id.substring(0, 8)}...</span>
+                      <span className="text-black">{esc.step_id.substring(0, 8)}...</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Incident/Wf ID: </span>
-                      <span className="text-gray-300">{esc.workflow_id.substring(0, 8)}...</span>
+                      <span className="text-black">{esc.workflow_id.substring(0, 8)}...</span>
                     </div>
                     <div>
                       <span className="text-gray-500">Suspended: </span>
-                      <span className="text-gray-300">{new Date(esc.created_at).toLocaleString()}</span>
+                      <span className="text-black">{new Date(esc.created_at).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Operations Buttons */}
-                <div className="pt-3 border-t border-slate-850 flex items-center justify-between gap-3">
+                <div className="pt-3 border-t border-gray-200 flex items-center justify-between gap-3">
                   <RoleGate
                     roles={["admin", "operator"]}
                     fallback={
@@ -162,7 +162,7 @@ export default function EscalationQueue() {
                       <button
                         onClick={() => handleRespond(esc.id, "approve")}
                         disabled={submittingId !== null}
-                        className="flex-1 py-2 bg-glowEmerald/10 hover:bg-glowEmerald/20 border border-glowEmerald/30 hover:border-glowEmerald text-glowEmerald rounded-lg text-xs font-bold transition disabled:opacity-40"
+                        className="flex-1 py-2 bg-green-50 hover:bg-green-100 border border-green-200 hover:border-green-300 text-green-700 rounded-lg text-xs font-bold transition disabled:opacity-40"
                       >
                         Approve
                       </button>
@@ -170,7 +170,7 @@ export default function EscalationQueue() {
                       <button
                         onClick={() => openModifyModal(esc)}
                         disabled={submittingId !== null}
-                        className="flex-1 py-2 bg-blue-600/10 hover:bg-blue-600/20 border border-blue-500/30 hover:border-blue-400 text-blue-400 rounded-lg text-xs font-bold transition disabled:opacity-40"
+                        className="flex-1 py-2 bg-blue-50 hover:bg-blue-100 border border-blue-200 hover:border-blue-300 text-blue-700 rounded-lg text-xs font-bold transition disabled:opacity-40"
                       >
                         Modify
                       </button>
@@ -178,7 +178,7 @@ export default function EscalationQueue() {
                       <button
                         onClick={() => handleRespond(esc.id, "reject")}
                         disabled={submittingId !== null}
-                        className="flex-1 py-2 bg-glowRose/10 hover:bg-glowRose/20 border border-glowRose/30 hover:border-glowRose text-glowRose rounded-lg text-xs font-bold transition disabled:opacity-40"
+                        className="flex-1 py-2 bg-red-50 hover:bg-red-100 border border-red-200 hover:border-red-300 text-red-700 rounded-lg text-xs font-bold transition disabled:opacity-40"
                       >
                         Reject
                       </button>
@@ -193,34 +193,34 @@ export default function EscalationQueue() {
 
       {/* Modify Action Configuration Modal */}
       {modifyingEscalation && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="w-full max-w-xl bg-panel border border-slate-800 rounded-xl p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="font-extrabold text-white text-base font-mono">Modify Action Scope</h3>
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-white border border-gray-200 rounded-xl p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+              <h3 className="font-extrabold text-black text-base font-mono">Modify Action Scope</h3>
               <button
                 onClick={() => setModifyingEscalation(null)}
-                className="text-gray-400 hover:text-white transition font-mono text-sm"
+                className="text-gray-500 hover:text-black transition font-mono text-sm"
               >
                 ✕ Close
               </button>
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-500">
                 Adjust step properties, input variables, or tool details to safely resume execution:
               </p>
               <textarea
                 value={modifiedActionJson}
                 onChange={(e) => setModifiedActionJson(e.target.value)}
                 rows={10}
-                className="w-full bg-slate-900 border border-slate-800 text-xs font-mono text-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full bg-gray-50 border border-gray-200 text-xs font-mono text-black rounded-lg p-3 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setModifyingEscalation(null)}
-                className="px-4 py-2 border border-slate-800 hover:border-slate-700 text-gray-300 rounded-lg text-xs font-semibold transition"
+                className="px-4 py-2 border border-gray-200 hover:border-gray-300 text-gray-600 bg-white rounded-lg text-xs font-semibold shadow-sm transition"
               >
                 Cancel
               </button>

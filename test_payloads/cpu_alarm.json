@@ -1,0 +1,7 @@
+{
+  "AlarmName": "High CPU Utilization - Production DB",
+  "NewStateValue": "ALARM",
+  "Reason": "Threshold Crossed: 1 datapoint [99.5 (15/10/25 10:00:00)] was greater than or equal to the threshold (90.0).",
+  "Region": "us-east-1",
+  "InstanceId": "i-0abcd1234efgh5678"
+}

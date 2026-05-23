@@ -259,7 +259,15 @@ async def get_workflow(
     )
     if not row:
         raise HTTPException(status_code=404, detail="Workflow not found")
-    return dict(row)
+        
+    data = dict(row)
+    if isinstance(data.get("plan"), str):
+        try:
+            data["plan"] = json.loads(data["plan"])
+        except json.JSONDecodeError:
+            pass
+            
+    return data
 
 @app.post("/api/v1/workflows/{id}/cancel")
 async def cancel_workflow(
@@ -484,3 +492,39 @@ async def query_audit(
     
     rows = await db.fetch(query, *params)
     return [dict(r) for r in rows]
+
+@app.get("/api/v1/observability/audit/validate-chain")
+async def trigger_chain_validation(
+    from_id: Optional[int] = None, 
+    to_id: Optional[int] = None,
+    payload: JWTPayload = Depends(require_auth)
+):
+    async with httpx.AsyncClient() as client:
+        params = {}
+        if from_id: params["from_id"] = from_id
+        if to_id: params["to_id"] = to_id
+        
+        try:
+            resp = await client.get(f"{OBSERVABILITY_URL}/observability/audit/validate-chain", params=params, timeout=10.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/observability/agents")
+async def get_observability_agents(
+    payload: JWTPayload = Depends(require_auth)
+):
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{OBSERVABILITY_URL}/observability/agents", timeout=5.0)
+            if resp.status_code == 200:
+                return resp.json()
+            else:
+                raise HTTPException(status_code=resp.status_code, detail=resp.text)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+

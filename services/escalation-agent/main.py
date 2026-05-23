@@ -198,7 +198,7 @@ async def notify(req: NotifyRequest):
     except Exception as re:
         logger.error(f"Failed to store escalation in Redis: {re}")
         
-    # 3. Emit escalation.triggered WebSocket event to Observability Layer (SLA: < 30s)
+    # 3. Emit escalation.triggered & agent.state_changed WebSocket events to Observability Layer
     async with httpx.AsyncClient() as client:
         try:
             await client.post(
@@ -213,6 +213,22 @@ async def notify(req: NotifyRequest):
                         "step_id": req.step_id,
                         "reason": req.reason,
                         "tier": 1
+                    },
+                    "emitted_at": datetime.now(timezone.utc).isoformat()
+                },
+                timeout=5.0
+            )
+            # Emit agent state change (active)
+            await client.post(
+                f"{OBSERVABILITY_URL}/observability/events",
+                json={
+                    "type": "agent.state_changed",
+                    "payload": {
+                        "agent_role": "escalation",
+                        "status": "active",
+                        "active_steps": 1,
+                        "incident_id": req.incident_id,
+                        "workflow_id": req.workflow_id
                     },
                     "emitted_at": datetime.now(timezone.utc).isoformat()
                 },
@@ -325,7 +341,7 @@ async def resolve(req: ResolveRequest):
     if duration > 5.0:
         logger.warning(f"SLA Warning: Escalation resolution routing took {duration}s (limit: 5s)")
         
-    # 4. Emit escalation.resolved event to Observability
+    # 4. Emit escalation.resolved & agent.state_changed WebSocket events to Observability
     async with httpx.AsyncClient() as client:
         try:
             await client.post(
@@ -339,6 +355,22 @@ async def resolve(req: ResolveRequest):
                         "step_id": step_id,
                         "approved": req.approve,
                         "reason": req.reason
+                    },
+                    "emitted_at": datetime.now(timezone.utc).isoformat()
+                },
+                timeout=5.0
+            )
+            # Emit agent state change (idle)
+            await client.post(
+                f"{OBSERVABILITY_URL}/observability/events",
+                json={
+                    "type": "agent.state_changed",
+                    "payload": {
+                        "agent_role": "escalation",
+                        "status": "idle",
+                        "active_steps": 0,
+                        "incident_id": incident_id,
+                        "workflow_id": workflow_id
                     },
                     "emitted_at": datetime.now(timezone.utc).isoformat()
                 },

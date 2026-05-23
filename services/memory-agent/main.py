@@ -20,6 +20,7 @@ app = FastAPI(title="Memory Agent", version="1.0.0")
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aeos")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 MEMORY_CONTEXT_QUERY_TIMEOUT_MS = int(os.environ.get("MEMORY_CONTEXT_QUERY_TIMEOUT_MS", 500))
+OBSERVABILITY_URL = os.environ.get("OBSERVABILITY_URL", "http://observability-service:8040")
 
 db_pool = None
 redis_client = None

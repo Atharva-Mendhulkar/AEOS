@@ -8,7 +8,10 @@ function getToken(): string | null {
   // Read from cookie
   const value = `; ${document.cookie}`;
   const parts = value.split(`; token=`);
-  if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
+  if (parts.length === 2) {
+    const token = parts.pop()?.split(";").shift();
+    if (token) return token;
+  }
   
   // Fallback to localStorage
   return localStorage.getItem("aeos_token");
@@ -24,11 +27,16 @@ export async function fetcher(url: string) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, { headers });
+  // Prepend API base URL if relative to bypass Next.js rewrites dropping auth headers
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:80";
+  const finalUrl = url.startsWith("/") ? `${baseUrl}${url}` : url;
+
+  // cache: no-store prevents Next.js from caching 401s during SSR
+  const res = await fetch(finalUrl, { headers, cache: "no-store" });
   
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    const error = new Error(errorData.detail || "An error occurred while fetching data.");
+    const error = new Error(errorData?.error?.message || errorData.detail || "An error occurred while fetching data.");
     (error as any).status = res.status;
     throw error;
   }

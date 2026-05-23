@@ -30,7 +30,7 @@ export async function generateJWT(sub: string, role: string): Promise<string> {
   const tokenInput = `${headerBase64}.${payloadBase64}`;
 
   // Use the default test secret key
-  const secret = "test-secret-key-for-testing";
+  const secret = "test-jwt-secret-key-for-aeos-123456789";
   const keyData = textEncoder.encode(secret);
 
   try {
@@ -67,7 +67,8 @@ export async function generateJWT(sub: string, role: string): Promise<string> {
 export function decodeJWT(token: string): any {
   try {
     const parts = token.split(".");
-    if (parts.length < 2) return null;
+    // Ensure the token has all 3 parts and a non-empty signature
+    if (parts.length !== 3 || !parts[2]) return null;
     const payloadJson = atob(parts[1].replace(/-/g, "+").replace(/_/g, "/"));
     return JSON.parse(payloadJson);
   } catch (e) {

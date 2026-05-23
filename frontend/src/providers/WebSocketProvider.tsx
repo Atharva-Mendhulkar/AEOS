@@ -53,14 +53,15 @@ export const WebSocketProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     console.log("Initializing Socket.IO client...");
     setStatus("connecting");
 
-    // Connect to current origin, which proxies /ws/events and /socket.io via next.config rewrites
-    const socketInstance = io(window.location.origin, {
+    // Connect directly to WebSocket URL (bypassing flaky Next.js dev rewrites)
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8040";
+    const socketInstance = io(wsUrl, {
       path: "/ws/events",
       query: { token },
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
       reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 2000,
       reconnectionDelayMax: 5000,
       timeout: 20000,
     });

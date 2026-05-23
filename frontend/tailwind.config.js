@@ -9,9 +9,9 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: "#030712",
-        panel: "#0b1528",
-        borderGlow: "#1e293b",
+        background: "#f8fafc",
+        panel: "#ffffff",
+        borderGlow: "#e2e8f0",
         glowEmerald: "#10b981",
         glowAmber: "#f59e0b",
         glowRose: "#f43f5e",
@@ -22,10 +22,10 @@ module.exports = {
         mono: ["JetBrains Mono", "monospace"],
       },
       boxShadow: {
-        glow: "0 0 15px rgba(59, 130, 246, 0.5)",
-        glowGreen: "0 0 15px rgba(16, 185, 129, 0.5)",
-        glowOrange: "0 0 15px rgba(245, 158, 11, 0.5)",
-        glowRed: "0 0 15px rgba(244, 63, 94, 0.5)",
+        glow: "0 4px 20px rgba(0, 0, 0, 0.04)",
+        glowGreen: "0 4px 20px rgba(16, 185, 129, 0.15)",
+        glowOrange: "0 4px 20px rgba(245, 158, 11, 0.15)",
+        glowRed: "0 4px 20px rgba(244, 63, 94, 0.15)",
       },
     },
   },

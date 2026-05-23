@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useWebSocket } from "@/providers/WebSocketProvider";
+import { apiClient } from "@/utils/api";
 
 interface AgentState {
   name: string;
@@ -89,35 +90,77 @@ const initialAgents: AgentState[] = [
 
 export default function AgentCoordinationMap() {
   const [agents, setAgents] = useState<AgentState[]>(initialAgents);
-  const { events } = useWebSocket();
+  const { events, status } = useWebSocket();
+  const lastProcessedIndexRef = React.useRef(0);
 
-  // Listen to agent.state_changed WebSocket events
+  // Fetch initial agent states on mount/reconnect
   useEffect(() => {
-    if (events.length > 0) {
-      const latestEvent = events[events.length - 1];
-      if (latestEvent.event_type === "agent.state_changed" || latestEvent.type === "agent.state_changed") {
-        const payload = latestEvent.payload || latestEvent;
-        const targetRole = payload.agent_role || payload.agent;
-        const newStatus = payload.status || "idle";
-        const steps = payload.active_steps !== undefined ? payload.active_steps : 0;
+    if (status !== "connected") return;
 
-        console.log(`Agent ${targetRole} changed state to ${newStatus}`);
-
-        setAgents((prev) =>
-          prev.map((agent) => {
-            if (agent.role.toLowerCase() === String(targetRole).toLowerCase() || 
-                agent.name.toLowerCase().includes(String(targetRole).toLowerCase())) {
+    const fetchAgentStates = async () => {
+      try {
+        const data = await apiClient.get("/api/v1/observability/agents");
+        setAgents((prev) => {
+          return prev.map((agent) => {
+            const roleKey = agent.role.toLowerCase();
+            if (data && data[roleKey]) {
+              const persisted = data[roleKey];
               return {
                 ...agent,
-                status: newStatus.toLowerCase() as "active" | "idle" | "blocked",
-                activeSteps: steps,
-                lastActive: new Date().toLocaleTimeString(),
+                status: (persisted.status || "idle").toLowerCase() as "active" | "idle" | "blocked",
+                activeSteps: persisted.active_steps !== undefined ? persisted.active_steps : 0,
+                lastActive: persisted.last_active 
+                  ? new Date(persisted.last_active).toLocaleTimeString() 
+                  : agent.lastActive,
               };
             }
             return agent;
-          })
-        );
+          });
+        });
+      } catch (err) {
+        console.error("Failed to fetch initial agent states:", err);
       }
+    };
+
+    fetchAgentStates();
+  }, [status]);
+
+  // Listen to agent.state_changed WebSocket events
+  useEffect(() => {
+    if (events.length > lastProcessedIndexRef.current) {
+      const newEvents = events.slice(lastProcessedIndexRef.current);
+      lastProcessedIndexRef.current = events.length;
+
+      setAgents((prev) => {
+        let updatedAgents = [...prev];
+        
+        for (const event of newEvents) {
+          if (event.event_type === "agent.state_changed" || event.type === "agent.state_changed") {
+            const payload = event.payload || event;
+            const targetRole = payload.agent_role || payload.agent;
+            const newStatus = payload.status || "idle";
+            const steps = payload.active_steps !== undefined ? payload.active_steps : 0;
+            const eventTime = event.emitted_at || event.timestamp || new Date().toISOString();
+
+            console.log(`Processing event: Agent ${targetRole} changed state to ${newStatus}`);
+
+            updatedAgents = updatedAgents.map((agent) => {
+              if (agent.role.toLowerCase() === String(targetRole).toLowerCase() || 
+                  agent.name.toLowerCase().includes(String(targetRole).toLowerCase())) {
+                return {
+                  ...agent,
+                  status: newStatus.toLowerCase() as "active" | "idle" | "blocked",
+                  activeSteps: steps,
+                  lastActive: new Date(eventTime).toLocaleTimeString(),
+                };
+              }
+              return agent;
+            });
+          }
+        }
+        
+        return updatedAgents;
+      });
     }
   }, [events]);
 
@@ -125,8 +168,8 @@ export default function AgentCoordinationMap() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight text-white">Specialist Agent Orchestration</h1>
-        <p className="text-sm text-gray-400 mt-1">
+        <h1 className="text-2xl font-extrabold tracking-tight text-black">Specialist Agent Orchestration</h1>
+        <p className="text-sm text-gray-500 mt-1">
           Active-state monitoring grid tracking the 9 sub-agents of the AEOS remediation layer.
         </p>
       </div>
@@ -139,20 +182,20 @@ export default function AgentCoordinationMap() {
           const statusConfig =
             status === "active"
               ? {
-                  badge: "bg-glowEmerald/10 border-glowEmerald/20 text-glowEmerald text-glow-green",
-                  dot: "bg-glowEmerald pulse-glow",
-                  cardBorder: "border-glowEmerald/35 hover:border-glowEmerald/60 shadow-glowGreen",
+                  badge: "bg-green-100 border-green-200 text-green-700",
+                  dot: "bg-green-500 pulse-glow",
+                  cardBorder: "border-green-300 hover:border-green-400 shadow-sm",
                 }
               : status === "blocked"
               ? {
-                  badge: "bg-glowRose/10 border-glowRose/20 text-glowRose text-glow-rose",
-                  dot: "bg-glowRose pulse-glow",
-                  cardBorder: "border-glowRose/35 hover:border-glowRose/60 shadow-glowRed",
+                  badge: "bg-red-100 border-red-200 text-red-700",
+                  dot: "bg-red-500 pulse-glow",
+                  cardBorder: "border-red-300 hover:border-red-400 shadow-sm",
                 }
               : {
-                  badge: "bg-slate-800 border-slate-750 text-gray-400",
-                  dot: "bg-gray-600",
-                  cardBorder: "border-slate-800 hover:border-slate-750",
+                  badge: "bg-gray-100 border-gray-200 text-gray-500",
+                  dot: "bg-gray-400",
+                  cardBorder: "border-gray-200 hover:border-gray-300",
                 };
 
           return (
@@ -161,8 +204,8 @@ export default function AgentCoordinationMap() {
               className={`glassmorphism p-5 rounded-xl border flex flex-col justify-between gap-4 transition-all duration-300 ${statusConfig.cardBorder}`}
             >
               <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2 border-b border-slate-850 pb-2.5">
-                  <h3 className="font-extrabold text-white text-sm tracking-wide font-mono truncate">
+                <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2.5">
+                  <h3 className="font-extrabold text-black text-sm tracking-wide font-mono truncate">
                     {agent.name}
                   </h3>
                   
@@ -175,18 +218,18 @@ export default function AgentCoordinationMap() {
                   </span>
                 </div>
 
-                <p className="text-xs text-gray-400 leading-relaxed min-h-[48px]">{agent.description}</p>
+                <p className="text-xs text-gray-500 leading-relaxed min-h-[48px]">{agent.description}</p>
               </div>
 
               {/* Telemetry info */}
-              <div className="grid grid-cols-2 gap-4 text-[10px] font-mono text-gray-500 bg-slate-950/40 p-3 rounded-lg border border-slate-900">
+              <div className="grid grid-cols-2 gap-4 text-[10px] font-mono text-gray-500 bg-gray-50 p-3 rounded-lg border border-gray-200">
                 <div>
-                  <span className="block uppercase text-gray-600 font-bold">Active Steps</span>
-                  <span className="text-white font-bold block mt-0.5">{agent.activeSteps}</span>
+                  <span className="block uppercase text-gray-500 font-bold">Active Steps</span>
+                  <span className="text-black font-bold block mt-0.5">{agent.activeSteps}</span>
                 </div>
                 <div>
-                  <span className="block uppercase text-gray-600 font-bold">Last Activity</span>
-                  <span className="text-gray-300 block mt-0.5 truncate">{agent.lastActive}</span>
+                  <span className="block uppercase text-gray-500 font-bold">Last Activity</span>
+                  <span className="text-gray-600 block mt-0.5 truncate">{agent.lastActive}</span>
                 </div>
               </div>
             </div>

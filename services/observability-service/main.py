@@ -69,7 +69,7 @@ MEMORY_AGENT_URL = os.environ.get("MEMORY_AGENT_URL", "http://localhost:8017")
 # Socket.IO Setup
 # ---------------------------------------------------------------------------
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
-socket_app = socketio.ASGIApp(sio, socketio_path="/ws/events")
+# Removed duplicate ASGIApp instantiation
 
 @sio.event
 async def connect(sid, environ, auth=None):
@@ -137,8 +137,7 @@ async def handle_subscribe(sid, data):
 async def disconnect(sid):
     logger.info(f"Client {sid} disconnected.")
 
-# Mount the socket ASGI app at root to handle /ws/events correctly
-app.mount("/", socket_app)
+# The socket app will be combined with the FastAPI app at the bottom of the file
 
 # ---------------------------------------------------------------------------
 # REST Endpoints
@@ -147,33 +146,53 @@ app.mount("/", socket_app)
 @app.post("/observability/events")
 async def ingest_event(event: dict):
     """Ingest a runtime event, persist to audit trail, buffer in Redis, and broadcast."""
-    workflow_id = event.get("workflow_id")
-    event_type = event.get("event_type", "unknown")
+    # Some agents emit flat events, while the coordinator nests them under 'payload'
+    payload = event.get("payload", event)
+    workflow_id = payload.get("workflow_id")
+    event_type = event.get("type") or event.get("event_type", "unknown")
     
     # 1. Persist to audit trail via Memory Agent
-    try:
-        async with httpx.AsyncClient() as client:
-            audit_resp = await client.post(
-                f"{MEMORY_AGENT_URL}/memory/audit",
-                json={
-                    "event_type": event_type,
-                    "agent_identity": event.get("agent_identity", "observability"),
-                    "incident_id": event.get("incident_id"),
-                    "workflow_id": workflow_id,
-                    "action_description": event.get("action_description") or f"Event {event_type} received",
-                    "inputs": event.get("inputs"),
-                    "outputs": event.get("outputs"),
-                    "risk_score": event.get("risk_score")
-                },
-                timeout=5.0
-            )
-            audit_data = audit_resp.json()
-            # Attach prev_entry_hash to the event representation
-            event["prev_entry_hash"] = audit_data.get("prev_entry_hash")
-    except Exception as e:
-        logger.error(f"Failed to persist event to audit trail: {e}")
-        # Continue so we don't break real-time streaming, but log the failure
+    if event_type != "agent.state_changed":
+        try:
+            async with httpx.AsyncClient() as client:
+                audit_resp = await client.post(
+                    f"{MEMORY_AGENT_URL}/memory/audit",
+                    json={
+                        "event_type": event_type,
+                        "agent_identity": payload.get("agent_identity", "observability"),
+                        "incident_id": payload.get("incident_id"),
+                        "workflow_id": workflow_id,
+                        "action_description": payload.get("action_description") or f"Event {event_type} received",
+                        "inputs": payload.get("inputs"),
+                        "outputs": payload.get("outputs"),
+                        "risk_score": payload.get("risk_score")
+                    },
+                    timeout=5.0
+                )
+                audit_data = audit_resp.json()
+                # Attach prev_entry_hash to the event representation
+                event["prev_entry_hash"] = audit_data.get("prev_entry_hash")
+        except Exception as e:
+            logger.error(f"Failed to persist event to audit trail: {e}")
+            # Continue so we don't break real-time streaming, but log the failure
     
+    # 1.5. Persist agent state in Redis
+    if event_type == "agent.state_changed":
+        try:
+            r_client = redis.from_url(REDIS_URL, decode_responses=True)
+            agent_role = payload.get("agent_role") or payload.get("agent")
+            if agent_role:
+                agent_state = {
+                    "status": payload.get("status", "idle"),
+                    "active_steps": payload.get("active_steps", 0),
+                    "last_active": event.get("emitted_at") or event.get("timestamp") or datetime.utcnow().isoformat()
+                }
+                await r_client.hset("observability:agents", agent_role.lower(), json.dumps(agent_state))
+                logger.info(f"Persisted state for agent {agent_role}: {agent_state}")
+            await r_client.close()
+        except Exception as e:
+            logger.error(f"Failed to persist agent state in Redis: {e}")
+
     # 2. Buffer in Redis
     if workflow_id:
         try:
@@ -200,8 +219,9 @@ async def ingest_event(event: dict):
     start_time = time.perf_counter()
     if workflow_id:
         await sio.emit("event", event, room=workflow_id)
-    else:
-        await sio.emit("event", event)
+    
+    # Always broadcast globally so global monitoring grids (Dashboard, Agents Page) get updates in real-time
+    await sio.emit("event", event)
         
     duration = time.perf_counter() - start_time
     if duration > 1.0:
@@ -264,9 +284,32 @@ async def trigger_chain_validation(from_id: Optional[int] = None, to_id: Optiona
     result = await validate_chain(from_id, to_id, DATABASE_URL)
     return result
 
+@app.get("/observability/agents")
+async def get_agents_status():
+    """Retrieve the persisted status of all agents from Redis."""
+    try:
+        r_client = redis.from_url(REDIS_URL, decode_responses=True)
+        agents_data = await r_client.hgetall("observability:agents")
+        await r_client.close()
+        
+        parsed_agents = {}
+        for role, state_str in agents_data.items():
+            try:
+                parsed_agents[role] = json.loads(state_str)
+            except Exception:
+                pass
+        return parsed_agents
+    except Exception as e:
+        logger.error(f"Failed to retrieve agent states: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/health")
 async def health():
     return {"status": "healthy", "service": "observability"}
+
+# Combine Socket.IO and FastAPI into a single ASGI application
+app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path="/ws/events")
+
 
 if __name__ == "__main__":
     import uvicorn

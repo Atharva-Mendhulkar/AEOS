@@ -1,0 +1,6 @@
+Operator: We just got an alert from the production database.
+DBA: Looking at it now. It seems we have a sudden spike in deadlocks.
+Operator: Is it affecting user traffic?
+DBA: Yes, checkout transactions are failing. I'm going to kill the long-running reporting queries.
+Operator: Let me know when it's clear so I can update the status page.
+DBA: Reporting queries killed. Deadlocks are resolving. Traffic should be recovering now.
