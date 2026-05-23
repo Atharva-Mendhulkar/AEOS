@@ -1,1 +1,10 @@
 .kiro/
+.env
+__pycache__/
+node_modules/
+*.pyc
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.next/

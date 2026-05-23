@@ -1,0 +1,388 @@
+version: "3.9"
+
+# AEOS Control Panel — Docker Compose
+# All services share the aeos-network bridge.
+# Only nginx is exposed externally on ports 80/443.
+# All inter-service communication uses internal Docker DNS names.
+
+networks:
+  aeos-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+
+services:
+
+  # ─────────────────────────────────────────────
+  # Infrastructure
+  # ─────────────────────────────────────────────
+
+  nginx:
+    build:
+      context: ./infra/nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      - frontend
+      - api-gateway
+      - observability-service
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./infra/db/migrations:/docker-entrypoint-initdb.d:ro
+    networks:
+      - aeos-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - aeos-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Presentation Layer
+  # ─────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
+    depends_on:
+      - api-gateway
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # API Gateway (L1 entry point)
+  # ─────────────────────────────────────────────
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      COORDINATOR_URL: http://coordinator:8001
+      MEMORY_AGENT_URL: http://memory-agent:8017
+      OBSERVABILITY_URL: http://observability-service:8040
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Coordination Layer
+  # ─────────────────────────────────────────────
+
+  coordinator:
+    build:
+      context: ./services/coordinator
+      dockerfile: Dockerfile
+    environment:
+      PORT: "8001"
+      REDIS_URL: ${REDIS_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      PLANNER_URL: http://planner-agent:8010
+      OBSERVABILITY_URL: http://observability-service:8040
+      MEMORY_AGENT_URL: http://memory-agent:8017
+      ESCALATION_URL: http://escalation-agent:8016
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Specialist Agent Layer
+  # ─────────────────────────────────────────────
+
+  planner-agent:
+    build:
+      context: ./services/planner-agent
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL_PLANNER: ${GEMINI_MODEL_PLANNER}
+      COORDINATOR_URL: http://coordinator:8001
+      GOVERNANCE_URL: http://governance-service:8020
+      MEMORY_AGENT_URL: http://memory-agent:8017
+      ESCALATION_URL: http://escalation-agent:8016
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  incident-analysis-agent:
+    build:
+      context: ./services/incident-analysis-agent
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL_ANALYSIS: ${GEMINI_MODEL_ANALYSIS}
+      COORDINATOR_URL: http://coordinator:8001
+      MEMORY_AGENT_URL: http://memory-agent:8017
+      ESCALATION_URL: http://escalation-agent:8016
+      CONFIDENCE_THRESHOLD: ${CONFIDENCE_THRESHOLD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  operations-agent:
+    build:
+      context: ./services/operations-agent
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL_OPERATIONS: ${GEMINI_MODEL_OPERATIONS}
+      COORDINATOR_URL: http://coordinator:8001
+      GOVERNANCE_URL: http://governance-service:8020
+      MEMORY_AGENT_URL: http://memory-agent:8017
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  compliance-agent:
+    build:
+      context: ./services/compliance-agent
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      FEATHERLESS_API_KEY: ${FEATHERLESS_API_KEY}
+      FEATHERLESS_MODEL_COMPLIANCE: ${FEATHERLESS_MODEL_COMPLIANCE}
+      COORDINATOR_URL: http://coordinator:8001
+      GOVERNANCE_URL: http://governance-service:8020
+      MEMORY_AGENT_URL: http://memory-agent:8017
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  validation-agent:
+    build:
+      context: ./services/validation-agent
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL_VALIDATION: ${GEMINI_MODEL_VALIDATION}
+      COORDINATOR_URL: http://coordinator:8001
+      GOVERNANCE_URL: http://governance-service:8020
+      MEMORY_AGENT_URL: http://memory-agent:8017
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  recovery-agent:
+    build:
+      context: ./services/recovery-agent
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      COORDINATOR_URL: http://coordinator:8001
+      PLANNER_URL: http://planner-agent:8010
+      ESCALATION_URL: http://escalation-agent:8016
+      MEMORY_AGENT_URL: http://memory-agent:8017
+      OBSERVABILITY_URL: http://observability-service:8040
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  escalation-agent:
+    build:
+      context: ./services/escalation-agent
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      COORDINATOR_URL: http://coordinator:8001
+      WORKFLOW_ENGINE_URL: http://workflow-engine:8030
+      RECOVERY_URL: http://recovery-agent:8015
+      MEMORY_AGENT_URL: http://memory-agent:8017
+      OBSERVABILITY_URL: http://observability-service:8040
+      ESCALATION_TIMEOUT_SECONDS: ${ESCALATION_TIMEOUT_SECONDS}
+      ESCALATION_TIER2_TIMEOUT_SECONDS: ${ESCALATION_TIER2_TIMEOUT_SECONDS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  memory-agent:
+    build:
+      context: ./services/memory-agent
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      MEMORY_CONTEXT_QUERY_TIMEOUT_MS: ${MEMORY_CONTEXT_QUERY_TIMEOUT_MS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Runtime Governance Layer
+  # ─────────────────────────────────────────────
+
+  governance-service:
+    build:
+      context: ./services/governance-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GEMINI_MODEL_GOVERNANCE: ${GEMINI_MODEL_GOVERNANCE}
+      ESCALATION_URL: http://escalation-agent:8016
+      MEMORY_AGENT_URL: http://memory-agent:8017
+      OBSERVABILITY_URL: http://observability-service:8040
+      RISK_THRESHOLD_HIGH: ${RISK_THRESHOLD_HIGH}
+      RISK_THRESHOLD_CRITICAL: ${RISK_THRESHOLD_CRITICAL}
+      POLICY_RELOAD_TIMEOUT_SECONDS: ${POLICY_RELOAD_TIMEOUT_SECONDS}
+      ANOMALY_BASELINE_WINDOW: ${ANOMALY_BASELINE_WINDOW}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Workflow Engine Layer
+  # ─────────────────────────────────────────────
+
+  workflow-engine:
+    build:
+      context: ./services/workflow-engine
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      GOVERNANCE_URL: http://governance-service:8020
+      COORDINATOR_URL: http://coordinator:8001
+      RECOVERY_URL: http://recovery-agent:8015
+      MEMORY_AGENT_URL: http://memory-agent:8017
+      OBSERVABILITY_URL: http://observability-service:8040
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
+      STEP_EXECUTION_TIMEOUT_SECONDS: ${STEP_EXECUTION_TIMEOUT_SECONDS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────
+  # Observability Layer
+  # ─────────────────────────────────────────────
+
+  observability-service:
+    build:
+      context: ./services/observability-service
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      EVENT_BUFFER_SIZE: ${EVENT_BUFFER_SIZE}
+      AUDIT_RETENTION_DAYS: ${AUDIT_RETENTION_DAYS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - aeos-network
+    restart: unless-stopped

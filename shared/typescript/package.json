@@ -1,0 +1,23 @@
+{
+  "name": "@aeos/types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types for AEOS Coordinator and Control Panel frontend",
+  "main": "dist/types/index.js",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/types/index.js",
+      "types": "./dist/types/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

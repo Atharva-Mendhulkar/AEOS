@@ -1,0 +1,65 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-gray-100 font-sans antialiased overflow-x-hidden selection:bg-blue-600 selection:text-white;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #030712;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3b82f6;
+}
+
+/* Smooth glass effect helper */
+.glassmorphism {
+  background: rgba(11, 21, 40, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Glowing text effects */
+.text-glow-green {
+  text-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+.text-glow-amber {
+  text-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+.text-glow-rose {
+  text-shadow: 0 0 8px rgba(244, 63, 94, 0.4);
+}
+.text-glow-blue {
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+/* Custom pulse animations for status signals */
+@keyframes double-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.7;
+  }
+}
+
+.pulse-glow {
+  animation: double-pulse 2s infinite ease-in-out;
+}
