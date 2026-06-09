@@ -12,6 +12,7 @@ from fastapi import FastAPI, Request, HTTPException, Query
 import httpx
 import redis.asyncio as redis
 import socketio
+from aeos_shared import add_security_middleware, sanitize_json
 from socketio.exceptions import ConnectionRefusedError
 
 import importlib.util
@@ -60,6 +61,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("observability-service")
 
 app = FastAPI(title="Observability Service", version="1.0.0")
+add_security_middleware(app)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aeos")
@@ -146,6 +148,7 @@ async def disconnect(sid):
 @app.post("/observability/events")
 async def ingest_event(event: dict):
     """Ingest a runtime event, persist to audit trail, buffer in Redis, and broadcast."""
+    event = sanitize_json(event)
     # Some agents emit flat events, while the coordinator nests them under 'payload'
     payload = event.get("payload", event)
     workflow_id = payload.get("workflow_id")

@@ -21,7 +21,7 @@ describe('Property 30: Client-side RBAC Enforcement', () => {
     </RoleGate>
   );
 
-  const roles = ['admin', 'operator', 'compliance', 'visitor'];
+  const roles = ['admin', 'operator', 'compliance', 'read_only'];
 
   it('Property: For any role/action combination, permitted actions are visible and non-permitted actions fallback', () => {
     // We test all combinations of user roles against all possible required roles

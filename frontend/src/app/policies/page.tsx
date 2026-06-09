@@ -7,21 +7,21 @@ import { useWebSocket } from "@/providers/WebSocketProvider";
 import { RoleGate, useRole } from "@/hooks/useRole";
 
 const defaultPolicyTemplates: Record<string, string> = {
-  risk: `{
-  "max_allowed_risk": 7.0,
-  "action_rules": {
-    "escalate_above": 7.0,
-    "halt_above": 9.0
-  }
+  risk_threshold: `{
+  "suspend_threshold": 7.0,
+  "halt_threshold": 9.0
+}`,
+  permission: `{
+  "agent_type": "operations",
+  "allowed_tools": ["gather_logs", "restart_service"],
+  "denied_tools": []
 }`,
   anomaly: `{
-  "anomaly_score_threshold": 0.85,
-  "metric_windows_sec": 300,
-  "track_actions": ["shutdown", "reboot", "isolate"]
+  "max_frequency_per_minute": 30,
+  "max_consecutive_identical_actions": 5
 }`,
-  general: `{
-  "governance_enabled": true,
-  "max_retries_limit": 3
+  retention: `{
+  "retention_days": 90
 }`
 };
 
@@ -40,8 +40,8 @@ export default function PolicyManager() {
 
   // Form states
   const [name, setName] = useState("");
-  const [policyType, setPolicyType] = useState("risk");
-  const [configJson, setConfigJson] = useState(defaultPolicyTemplates.risk);
+  const [policyType, setPolicyType] = useState("risk_threshold");
+  const [configJson, setConfigJson] = useState(defaultPolicyTemplates.risk_threshold);
 
   // Sync edit form fields
   useEffect(() => {
@@ -58,7 +58,7 @@ export default function PolicyManager() {
   // Handle template change based on type selection
   useEffect(() => {
     if (!editingPolicy) {
-      setConfigJson(defaultPolicyTemplates[policyType] || defaultPolicyTemplates.general);
+      setConfigJson(defaultPolicyTemplates[policyType] || defaultPolicyTemplates.risk_threshold);
     }
   }, [policyType, editingPolicy]);
 
@@ -122,22 +122,7 @@ export default function PolicyManager() {
       formData.append("name", name);
       formData.append("config", configJson);
 
-      // Perform PUT request using multipart form payload
-      const token = localStorage.getItem("aeos_token");
-      const headers: HeadersInit = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      const res = await fetch(`/api/v1/policies/${editingPolicy.id}`, {
-        method: "PUT",
-        headers,
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to update policy");
-      }
+      await apiClient.putMultipart(`/api/v1/policies/${editingPolicy.id}`, formData);
 
       setEditingPolicy(null);
       resetForm();
@@ -155,20 +140,7 @@ export default function PolicyManager() {
     setSubmitting(true);
 
     try {
-      const token = localStorage.getItem("aeos_token");
-      const headers: HeadersInit = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-      }
-      const res = await fetch(`/api/v1/policies/${deactivatingPolicy.id}`, {
-        method: "DELETE",
-        headers,
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail || "Failed to deactivate policy");
-      }
+      await apiClient.delete(`/api/v1/policies/${deactivatingPolicy.id}`);
 
       setDeactivatingPolicy(null);
       mutate();
@@ -181,8 +153,8 @@ export default function PolicyManager() {
 
   const resetForm = () => {
     setName("");
-    setPolicyType("risk");
-    setConfigJson(defaultPolicyTemplates.risk);
+    setPolicyType("risk_threshold");
+    setConfigJson(defaultPolicyTemplates.risk_threshold);
     setErrorMessage(null);
   };
 
@@ -340,9 +312,10 @@ export default function PolicyManager() {
                     onChange={(e) => setPolicyType(e.target.value)}
                     className="w-full bg-gray-50 border border-gray-200 text-black rounded-lg px-3 py-2.5 focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
-                    <option value="risk">Risk Engine Rule</option>
+                    <option value="risk_threshold">Risk Engine Rule</option>
+                    <option value="permission">Permission Scope</option>
                     <option value="anomaly">Anomaly Detector</option>
-                    <option value="general">General Operations</option>
+                    <option value="retention">Retention Policy</option>
                   </select>
                 </div>
               </div>

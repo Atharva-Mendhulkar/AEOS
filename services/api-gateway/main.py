@@ -7,8 +7,10 @@ import httpx
 from fastapi import FastAPI, Depends, File, UploadFile, Form, HTTPException, BackgroundTasks, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi import Response
 from typing import Optional
 import asyncpg
+import redis.asyncio as redis
 
 from aeos_shared import (
     require_auth,
@@ -20,6 +22,10 @@ from aeos_shared import (
     MultimodalInputFormat,
     MultimodalInputStatus,
     AuditTrailEntry,
+    parse_json_config,
+    sanitize_json,
+    sanitize_text,
+    validate_policy_config,
 )
 from preprocessing.audio import transcribe_audio
 from preprocessing.document import extract_text
@@ -30,6 +36,7 @@ logger = logging.getLogger("api-gateway")
 MEMORY_AGENT_URL = os.environ.get("MEMORY_AGENT_URL", "http://memory-agent:8017")
 COORDINATOR_URL = os.environ.get("COORDINATOR_URL", "http://coordinator:8001")
 OBSERVABILITY_URL = os.environ.get("OBSERVABILITY_URL", "http://observability-service:8040")
+REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 UPLOAD_DIR = "/tmp/aeos_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -49,7 +56,38 @@ async def add_correlation_id(request: Request, call_next):
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Correlation-ID"] = request_id
+    response.headers["X-Request-ID"] = request_id
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
     return response
+
+async def publish_policy_update(policy_name: str):
+    try:
+        r_client = redis.from_url(REDIS_URL, decode_responses=True)
+        await r_client.publish("policy:updated", f"Policy '{policy_name}' updated")
+        await r_client.close()
+    except Exception as e:
+        logger.warning(f"Failed to publish policy update for {policy_name}: {e}")
+
+async def audit_policy_change(event_type: str, payload: JWTPayload, policy_id: str, name: str, config: dict, version: int):
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                f"{MEMORY_AGENT_URL}/memory/audit",
+                json={
+                    "event_type": event_type,
+                    "agent_identity": "api-gateway",
+                    "action_description": f"Policy '{name}' {event_type.split('.')[-1]} by {payload.sub}",
+                    "inputs": {"policy_id": policy_id, "policy_config": config},
+                    "outputs": {"policy_id": policy_id, "version": version},
+                },
+                timeout=5.0,
+            )
+    except Exception as e:
+        logger.warning(f"Failed to audit policy change for {policy_id}: {e}")
+
+def cache_read_response(response: Response, max_age_seconds: int = 5):
+    response.headers["Cache-Control"] = f"private, max-age={max_age_seconds}, stale-while-revalidate=30"
 
 @app.on_event("startup")
 async def startup_event():
@@ -114,6 +152,9 @@ async def ingest_incident(
 ):
     input_id = uuid.uuid4()
     created_at = datetime.now(timezone.utc)
+    format = sanitize_text(format)
+    metadata = sanitize_text(metadata) if metadata else None
+    raw_content = sanitize_text(raw_content) if raw_content else None
     
     # 1. Format validation
     supported_formats = ["text", "json", "pdf", "image", "log", "audio", "transcript"]
@@ -148,14 +189,15 @@ async def ingest_incident(
             raise HTTPException(status_code=413, detail="File size exceeds maximum limit of 50 MB")
         
         # Save file locally
-        file_path = os.path.join(UPLOAD_DIR, f"{input_id}_{file.filename}")
+        safe_filename = sanitize_text(os.path.basename(file.filename or "upload"))
+        file_path = os.path.join(UPLOAD_DIR, f"{input_id}_{safe_filename}")
         with open(file_path, "wb") as f:
             f.write(file_bytes)
         
         # If text/json/log, we can populate raw_content from file
         if format in ["text", "json", "log", "transcript"] and not raw_content:
             try:
-                raw_content = file_bytes.decode("utf-8")
+                raw_content = sanitize_text(file_bytes.decode("utf-8"))
             except Exception:
                 pass
     elif raw_content is not None:
@@ -207,11 +249,13 @@ async def ingest_incident(
 # ---------------------------------------------------------------------------
 @app.get("/api/v1/incidents")
 async def list_incidents(
+    response: Response,
     limit: int = 20,
     offset: int = 0,
     payload: JWTPayload = Depends(require_auth),
     db: asyncpg.Connection = Depends(get_db)
 ):
+    cache_read_response(response)
     rows = await db.fetch(
         "SELECT id, root_signature, severity, confidence_score, status, source_input_ref, workflow_id, created_at, updated_at FROM incidents ORDER BY created_at DESC LIMIT $1 OFFSET $2",
         limit, offset
@@ -221,9 +265,11 @@ async def list_incidents(
 @app.get("/api/v1/incidents/{id}")
 async def get_incident(
     id: uuid.UUID,
+    response: Response,
     payload: JWTPayload = Depends(require_auth),
     db: asyncpg.Connection = Depends(get_db)
 ):
+    cache_read_response(response)
     row = await db.fetchrow(
         "SELECT id, root_signature, severity, confidence_score, status, source_input_ref, workflow_id, created_at, updated_at FROM incidents WHERE id = $1 OR source_input_ref = $1",
         id
@@ -235,9 +281,11 @@ async def get_incident(
 @app.get("/api/v1/incidents/{id}/audit")
 async def get_incident_audit(
     id: uuid.UUID,
+    response: Response,
     payload: JWTPayload = Depends(require_auth),
     db: asyncpg.Connection = Depends(get_db)
 ):
+    cache_read_response(response)
     rows = await db.fetch(
         "SELECT id, event_type, timestamp, agent_identity, incident_id, workflow_id, action_description, inputs, outputs, risk_score, prev_entry_hash FROM audit_trail WHERE incident_id = $1 ORDER BY timestamp ASC",
         id
@@ -250,9 +298,11 @@ async def get_incident_audit(
 @app.get("/api/v1/workflows/{id}")
 async def get_workflow(
     id: uuid.UUID,
+    response: Response,
     payload: JWTPayload = Depends(require_auth),
     db: asyncpg.Connection = Depends(get_db)
 ):
+    cache_read_response(response)
     row = await db.fetchrow(
         "SELECT id, incident_id, plan, status, current_step_ids, retry_count, checkpoint, created_at, updated_at FROM workflows WHERE id = $1",
         id
@@ -309,9 +359,11 @@ async def cancel_workflow(
 # ---------------------------------------------------------------------------
 @app.get("/api/v1/escalations/pending")
 async def get_pending_escalations(
+    response: Response,
     payload: JWTPayload = Depends(require_auth),
     db: asyncpg.Connection = Depends(get_db)
 ):
+    cache_read_response(response)
     # Query suspended workflow steps as pending escalations
     rows = await db.fetch(
         """
@@ -375,9 +427,11 @@ async def respond_escalation(
 # ---------------------------------------------------------------------------
 @app.get("/api/v1/policies")
 async def list_policies(
+    response: Response,
     payload: JWTPayload = Depends(require_auth),
     db: asyncpg.Connection = Depends(get_db)
 ):
+    cache_read_response(response, max_age_seconds=10)
     rows = await db.fetch("SELECT id, name, version, is_active, policy_type, config, created_by, created_at, updated_at FROM policies ORDER BY created_at DESC")
     return [dict(r) for r in rows]
 
@@ -390,10 +444,15 @@ async def create_policy(
     db: asyncpg.Connection = Depends(get_db)
 ):
     policy_id = uuid.uuid4()
+    name = sanitize_text(name)
+    policy_type = sanitize_text(policy_type)
     try:
-        config_json = json.loads(config)
-    except Exception:
+        config_json = parse_json_config(config)
+        validate_policy_config(policy_type, config_json)
+    except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON config")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
         
     await db.execute(
         """
@@ -402,6 +461,8 @@ async def create_policy(
         """,
         policy_id, name, policy_type, json.dumps(config_json), payload.sub
     )
+    await publish_policy_update(name)
+    await audit_policy_change("policy.created", payload, str(policy_id), name, config_json, 1)
     return {"id": str(policy_id), "status": "created"}
 
 @app.put("/api/v1/policies/{id}")
@@ -412,14 +473,18 @@ async def update_policy(
     payload: JWTPayload = Depends(require_role(["admin", "compliance"])),
     db: asyncpg.Connection = Depends(get_db)
 ):
-    row = await db.fetchrow("SELECT version FROM policies WHERE id = $1", id)
+    name = sanitize_text(name)
+    row = await db.fetchrow("SELECT version, policy_type FROM policies WHERE id = $1", id)
     if not row:
         raise HTTPException(status_code=404, detail="Policy not found")
         
     try:
-        config_json = json.loads(config)
-    except Exception:
+        config_json = parse_json_config(config)
+        validate_policy_config(row["policy_type"], config_json)
+    except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Invalid JSON config")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
         
     new_version = row["version"] + 1
     await db.execute(
@@ -430,6 +495,8 @@ async def update_policy(
         """,
         name, json.dumps(config_json), new_version, id
     )
+    await publish_policy_update(name)
+    await audit_policy_change("policy.updated", payload, str(id), name, config_json, new_version)
     return {"id": str(id), "version": new_version, "status": "updated"}
 
 @app.delete("/api/v1/policies/{id}")
@@ -438,11 +505,16 @@ async def delete_policy(
     payload: JWTPayload = Depends(require_role(["admin", "compliance"])),
     db: asyncpg.Connection = Depends(get_db)
 ):
-    row = await db.fetchrow("SELECT id FROM policies WHERE id = $1", id)
+    row = await db.fetchrow("SELECT id, name, version, config FROM policies WHERE id = $1", id)
     if not row:
         raise HTTPException(status_code=404, detail="Policy not found")
         
     await db.execute("UPDATE policies SET is_active = FALSE, updated_at = NOW() WHERE id = $1", id)
+    await publish_policy_update(row["name"])
+    row_config = row["config"]
+    if isinstance(row_config, str):
+        row_config = json.loads(row_config)
+    await audit_policy_change("policy.deactivated", payload, str(id), row["name"], sanitize_json(row_config), row["version"])
     return {"id": str(id), "status": "deactivated"}
 
 # ---------------------------------------------------------------------------
@@ -450,6 +522,7 @@ async def delete_policy(
 # ---------------------------------------------------------------------------
 @app.get("/api/v1/audit")
 async def query_audit(
+    response: Response,
     incident_id: Optional[uuid.UUID] = None,
     workflow_id: Optional[uuid.UUID] = None,
     agent_identity: Optional[str] = None,
@@ -459,6 +532,7 @@ async def query_audit(
     payload: JWTPayload = Depends(require_auth),
     db: asyncpg.Connection = Depends(get_db)
 ):
+    cache_read_response(response, max_age_seconds=10)
     query = """
         SELECT id, event_type, timestamp, agent_identity, incident_id, workflow_id, action_description, inputs, outputs, risk_score, prev_entry_hash
         FROM audit_trail
@@ -526,5 +600,3 @@ async def get_observability_agents(
                 raise HTTPException(status_code=resp.status_code, detail=resp.text)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
-
-

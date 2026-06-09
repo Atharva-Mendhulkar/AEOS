@@ -11,11 +11,13 @@ from pydantic import BaseModel
 import httpx
 import redis.asyncio as redis
 import asyncpg
+from aeos_shared import add_security_middleware, sanitize_text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("escalation-agent")
 
 app = FastAPI(title="Escalation Agent", version="1.0.0")
+add_security_middleware(app)
 
 # Service URLs from Environment
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aeos")
@@ -59,6 +61,9 @@ async def log_audit_event(
     outputs: Optional[dict] = None,
     risk_score: Optional[float] = None
 ):
+    event_type = sanitize_text(event_type)
+    agent_identity = sanitize_text(agent_identity)
+    action_description = sanitize_text(action_description)
     try:
         async with httpx.AsyncClient() as client:
             await client.post(
@@ -163,6 +168,10 @@ async def monitor_escalation_timeouts():
 
 @app.post("/escalation/notify")
 async def notify(req: NotifyRequest):
+    req.incident_id = sanitize_text(req.incident_id)
+    req.workflow_id = sanitize_text(req.workflow_id)
+    req.step_id = sanitize_text(req.step_id) if req.step_id else None
+    req.reason = sanitize_text(req.reason)
     logger.info(f"Escalation notification triggered for workflow {req.workflow_id}")
     
     escalation_id = str(uuid.uuid4())
@@ -258,6 +267,10 @@ class RespondRequest(BaseModel):
 
 @app.post("/escalations/{id}/respond")
 async def respond_escalation_route(id: str, req: RespondRequest):
+    id = sanitize_text(id)
+    req.decision = sanitize_text(req.decision)
+    req.notes = sanitize_text(req.notes) if req.notes else None
+    req.operator = sanitize_text(req.operator) if req.operator else None
     logger.info(f"Operator {req.operator} responded to escalation {id} with decision {req.decision}")
     approve = req.decision in ["approve", "modify"]
     resolve_req = ResolveRequest(
@@ -269,6 +282,8 @@ async def respond_escalation_route(id: str, req: RespondRequest):
 
 @app.post("/escalation/resolve")
 async def resolve(req: ResolveRequest):
+    req.escalation_id = sanitize_text(req.escalation_id)
+    req.reason = sanitize_text(req.reason) if req.reason else None
     logger.info(f"Resolving escalation {req.escalation_id}. Approved: {req.approve}")
     
     # 1. Fetch escalation info from Redis

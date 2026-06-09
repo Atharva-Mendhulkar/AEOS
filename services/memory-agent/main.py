@@ -11,11 +11,14 @@ from fastapi import FastAPI, HTTPException, Request, Response, status, Query
 from pydantic import BaseModel, Field
 import asyncpg
 import redis.asyncio as redis
+from aeos_shared import add_security_middleware, sanitize_json, sanitize_model_text_fields, sanitize_text
+from memory_jobs.retention import enforce_retention
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("memory-agent")
 
 app = FastAPI(title="Memory Agent", version="1.0.0")
+add_security_middleware(app)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aeos")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -102,6 +105,11 @@ def make_canonical_dict(row: dict) -> dict:
             res[k] = str(val)
         elif isinstance(val, (dict, list)):
             res[k] = json.loads(json.dumps(val, sort_keys=True))
+        elif isinstance(val, str) and (val.startswith("{") or val.startswith("[")):
+            try:
+                res[k] = json.loads(val)
+            except Exception:
+                res[k] = val
         elif isinstance(val, float):
             res[k] = round(val, 4)
         else:
@@ -124,9 +132,10 @@ async def health():
 @app.post("/memory/workflows")
 async def save_workflow(state: WorkflowState):
     """Upsert workflow state to PostgreSQL."""
+    state = sanitize_model_text_fields(state)
     try:
-        plan_json = json.dumps(state.plan or {})
-        checkpoint_json = json.dumps(state.checkpoint or {})
+        plan_json = json.dumps(sanitize_json(state.plan or {}))
+        checkpoint_json = json.dumps(sanitize_json(state.checkpoint or {}))
         
         async with db_pool.acquire() as conn:
             await conn.execute(
@@ -219,9 +228,10 @@ async def get_checkpoint(workflow_id: str):
 @app.post("/memory/plans")
 async def save_plan(state: PlanState):
     """Persist plan to workflows.plan."""
+    state = sanitize_model_text_fields(state)
     try:
         wf_uuid = uuid.UUID(state.workflow_id)
-        plan_json = json.dumps(state.plan)
+        plan_json = json.dumps(sanitize_json(state.plan))
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid parameter format")
 
@@ -238,6 +248,7 @@ async def save_plan(state: PlanState):
 @app.post("/memory/context")
 async def store_context(record: ContextRecord):
     """Store operational context record in PostgreSQL database."""
+    record = sanitize_model_text_fields(record)
     try:
         inc_uuid = uuid.UUID(record.incident_id) if record.incident_id else None
         
@@ -250,7 +261,7 @@ async def store_context(record: ContextRecord):
                 record.context_type,
                 inc_uuid,
                 record.agent_type,
-                json.dumps(record.content),
+                json.dumps(sanitize_json(record.content)),
                 record.embedding_vector
             )
         return {"status": "stored"}
@@ -261,6 +272,7 @@ async def store_context(record: ContextRecord):
 @app.post("/memory/context/query")
 async def query_context(req: ContextQueryRequest):
     """Query operational context within the configured SLA timebudget."""
+    req = sanitize_model_text_fields(req)
     timeout_seconds = MEMORY_CONTEXT_QUERY_TIMEOUT_MS / 1000.0
     
     async def perform_query():
@@ -273,7 +285,7 @@ async def query_context(req: ContextQueryRequest):
             conditions.append(f"content::text ILIKE ${len(params)}")
             
         if req.filter:
-            params.append(json.dumps(req.filter))
+            params.append(json.dumps(sanitize_json(req.filter)))
             conditions.append(f"content @> ${len(params)}::jsonb")
             
         sql = f"""
@@ -315,6 +327,7 @@ async def query_context(req: ContextQueryRequest):
 @app.post("/memory/audit")
 async def append_audit(entry: AuditEntry):
     """Append a hash-chained, tamper-evident entry to the audit trail."""
+    entry = sanitize_model_text_fields(entry)
     try:
         inc_uuid = uuid.UUID(entry.incident_id) if entry.incident_id else None
         wf_uuid = uuid.UUID(entry.workflow_id) if entry.workflow_id else None
@@ -337,8 +350,8 @@ async def append_audit(entry: AuditEntry):
                 prev_entry_hash = compute_entry_hash(dict(prev_row))
                 
             # 2. Insert new entry with prev_entry_hash
-            inputs_json = json.dumps(entry.inputs or {})
-            outputs_json = json.dumps(entry.outputs or {})
+            inputs_json = json.dumps(sanitize_json(entry.inputs or {}))
+            outputs_json = json.dumps(sanitize_json(entry.outputs or {}))
             
             await conn.execute(
                 """
@@ -375,6 +388,8 @@ async def query_audit(
 ):
     """Query audit trail with filters."""
     try:
+        agent = sanitize_text(agent) if agent else None
+        event_type = sanitize_text(event_type) if event_type else None
         conditions = ["1=1"]
         params = []
         
@@ -441,6 +456,15 @@ async def query_audit(
         return results
     except Exception as e:
         logger.error(f"Error querying audit trail: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/memory/retention/enforce")
+async def enforce_retention_endpoint(retention_days: int = Query(90, ge=1)):
+    """Manually trigger retention enforcement for operational verification."""
+    try:
+        return await enforce_retention(DATABASE_URL, retention_days)
+    except Exception as e:
+        logger.error(f"Retention enforcement failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":

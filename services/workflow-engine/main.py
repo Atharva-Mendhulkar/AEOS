@@ -9,11 +9,13 @@ from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from celery import Celery
+from aeos_shared import add_security_middleware, sanitize_json
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workflow-engine")
 
 app = FastAPI(title="Workflow Engine", version="1.0.0")
+add_security_middleware(app)
 
 # URLs and environment configurations
 REDIS_URL = os.environ.get("REDIS_URL", "redis://:aeosredis@redis:6379/0")
@@ -207,6 +209,9 @@ async def async_celery_execute_step(task_data: dict):
 # ---------------------------------------------------------------------------
 @app.post("/workflow/execute-step")
 async def execute_step(req: ExecuteStepRequest):
+    req.action.tool = sanitize_json(req.action.tool)
+    req.action.params = sanitize_json(req.action.params)
+    req.context = sanitize_json(req.context)
     logger.info(f"Received execution request for step {req.step_id} of workflow {req.workflow_id}")
 
     # 1. Call Governance validate-action
@@ -290,6 +295,7 @@ async def execute_step(req: ExecuteStepRequest):
 
 @app.post("/workflow/resume-step")
 async def resume_step(req: ResumeStepRequest):
+    req.reason = sanitize_json(req.reason) if req.reason else None
     logger.info(f"Resuming step {req.step_id} for workflow {req.workflow_id}. Approved: {req.approved}")
     
     # Update step status from suspended back to active in DB

@@ -164,10 +164,11 @@ async def test_event_ingestion_and_broadcast_sla(mock_post, mock_redis_func):
     mock_post.assert_called_once()
     assert "/memory/audit" in str(mock_post.call_args[0][0])
     
-    # Verify broadcast room emission in Socket.IO
-    obs_service.sio.emit.assert_called_once()
-    room_arg = obs_service.sio.emit.call_args[1]["room"]
-    assert room_arg == "wf-123"
+    # Verify room-scoped and global Socket.IO broadcasts.
+    assert obs_service.sio.emit.call_count == 2
+    room_call, global_call = obs_service.sio.emit.call_args_list
+    assert room_call.kwargs["room"] == "wf-123"
+    assert "room" not in global_call.kwargs
 
 # ---------------------------------------------------------------------------
 # 4. Audit Trail Chain Tamper-Evidence Tests

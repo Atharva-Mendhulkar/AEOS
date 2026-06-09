@@ -77,6 +77,14 @@ from aeos_shared.db import (
     init_db_pool,
     close_db_pool,
 )
+from aeos_shared.security import (
+    add_security_middleware,
+    parse_json_config,
+    sanitize_json,
+    sanitize_model_text_fields,
+    sanitize_text,
+    validate_policy_config,
+)
 
 __all__ = [
     # auth
@@ -142,4 +150,11 @@ __all__ = [
     "get_db",
     "init_db_pool",
     "close_db_pool",
+    # security
+    "add_security_middleware",
+    "parse_json_config",
+    "sanitize_json",
+    "sanitize_model_text_fields",
+    "sanitize_text",
+    "validate_policy_config",
 ]

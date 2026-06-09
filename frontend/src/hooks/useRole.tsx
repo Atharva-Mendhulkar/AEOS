@@ -5,7 +5,7 @@ import { useAuth } from "@/providers/AuthProvider";
 
 export const useRole = () => {
   const { user } = useAuth();
-  const role = user?.role || "visitor";
+  const role = user?.role || "read_only";
 
   const isRole = (checkRoles: string | string[]) => {
     const list = Array.isArray(checkRoles) ? checkRoles : [checkRoles];
@@ -19,7 +19,8 @@ export const useRole = () => {
     isAdmin: role === "admin",
     isOperator: role === "operator",
     isCompliance: role === "compliance",
-    isVisitor: role === "visitor",
+    isReadOnly: role === "read_only",
+    isVisitor: role === "visitor" || role === "read_only",
   };
 };
 

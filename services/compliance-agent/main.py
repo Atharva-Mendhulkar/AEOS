@@ -7,11 +7,13 @@ from typing import Dict, Any, Optional
 from fastapi import FastAPI
 import httpx
 import redis.asyncio as redis
+from aeos_shared import add_security_middleware
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("compliance-agent")
 
 app = FastAPI(title="Compliance Agent", version="1.0.0")
+add_security_middleware(app)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 COORDINATOR_URL = os.environ.get("COORDINATOR_URL", "http://coordinator:8001")

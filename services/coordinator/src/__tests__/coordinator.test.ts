@@ -55,6 +55,7 @@ describe('Coordinator Express App', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockQuery.mockResolvedValue({ rows: [] });
     mockClient = {
       query: jest.fn().mockResolvedValue({ rows: [] }),
       release: jest.fn(),
@@ -181,8 +182,10 @@ describe('Coordinator Express App', () => {
       output: { status: 'success' }
     };
 
-    // Mock step status update
-    mockQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE step status
+    const incidentId = uuidv4();
+    mockQuery.mockResolvedValueOnce({ rows: [{ incident_id: incidentId }] }); // SELECT workflow incident
+    mockQuery.mockResolvedValueOnce({ rows: [{ agent_type: 'operations' }] }); // SELECT completed step agent
+    mockQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE completed step status/output
 
     // Redis mock setup: check if finished step releases step 2
     mockSmembers.mockResolvedValueOnce([step2Id]);
@@ -199,7 +202,7 @@ describe('Coordinator Express App', () => {
       }]
     }); // SELECT step 2
     mockQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE step 2 active
-    mockQuery.mockResolvedValueOnce({ rows: [{ incident_id: uuidv4() }] }); // SELECT incident_id
+    mockQuery.mockResolvedValueOnce({ rows: [{ incident_id: incidentId }] }); // SELECT incident_id
     mockQuery.mockResolvedValueOnce({ rows: [{ id: step1Id, agent_type: 'operations', output: { status: 'success' } }] }); // SELECT completed steps (for output propagation)
 
     // Check if workflow is finished: count of active/pending steps > 0
@@ -225,6 +228,8 @@ describe('Coordinator Express App', () => {
       error: 'Simulated execution timeout'
     };
 
+    mockQuery.mockResolvedValueOnce({ rows: [{ incident_id: uuidv4() }] }); // SELECT workflow incident
+    mockQuery.mockResolvedValueOnce({ rows: [{ agent_type: 'operations' }] }); // SELECT failed step agent
     mockQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE step status failed
     mockQuery.mockResolvedValueOnce({ rows: [{ count: '0' }] }); // count active steps = 0 (workflow finished)
     mockQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE workflow status failed

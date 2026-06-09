@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 import httpx
 import asyncpg
 import redis.asyncio as redis
+from aeos_shared import add_security_middleware, sanitize_json, sanitize_text, validate_policy_config
 
 # Import custom sub-modules
 from scoring.rule_based import evaluate_rule_based_risk, RiskAssessment
@@ -23,6 +24,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("governance-service")
 
 app = FastAPI(title="Governance Service", version="1.0.0")
+add_security_middleware(app)
 
 # Service URLs
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aeos")
@@ -63,6 +65,11 @@ def datetime_now_iso():
 # ---------------------------------------------------------------------------
 def validate_policy_json(policy_type: str, config: dict):
     """Validate policy JSON schema configuration."""
+    try:
+        validate_policy_config(policy_type, config)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
     if policy_type == "permission":
         agent_type = config.get("agent_type")
         if not agent_type:
@@ -122,14 +129,14 @@ async def trigger_policy_reload(policy_name: str):
 # Helper to record event in Memory Agent Audit Trail
 async def record_audit_entry(agent: str, event_type: str, desc: str, inputs: dict, outputs: dict, incident_id: Optional[str] = None, workflow_id: Optional[str] = None, risk: Optional[float] = None):
     audit_payload = {
-        "event_type": event_type,
+        "event_type": sanitize_text(event_type),
         "timestamp": datetime_now_iso(),
-        "agent_identity": agent,
+        "agent_identity": sanitize_text(agent),
         "incident_id": incident_id,
         "workflow_id": workflow_id,
-        "action_description": desc,
-        "inputs": inputs,
-        "outputs": outputs,
+        "action_description": sanitize_text(desc),
+        "inputs": sanitize_json(inputs),
+        "outputs": sanitize_json(outputs),
         "risk_score": risk
     }
     async with httpx.AsyncClient() as client:
@@ -181,6 +188,9 @@ async def emit_governance_state(status: str, incident_id: Optional[str] = None, 
 
 @app.post("/governance/validate-action")
 async def validate_action(req: ValidateActionRequest):
+    req.agent_type = sanitize_text(req.agent_type)
+    req.action.tool = sanitize_text(req.action.tool)
+    req.action.params = sanitize_json(req.action.params)
     action_dict = req.action.model_dump()
     logger.info(f"Validating action: {req.action.tool} for agent {req.agent_type}")
 
@@ -324,6 +334,10 @@ async def get_policies():
 
 @app.post("/governance/policies", status_code=status.HTTP_201_CREATED)
 async def create_policy(policy: PolicyConfig):
+    policy.name = sanitize_text(policy.name)
+    policy.policy_type = sanitize_text(policy.policy_type)
+    policy.created_by = sanitize_text(policy.created_by)
+    policy.config = sanitize_json(policy.config)
     # Validate JSON Schema
     validate_policy_json(policy.policy_type, policy.config)
     
@@ -369,6 +383,7 @@ async def create_policy(policy: PolicyConfig):
 
 @app.put("/governance/policies/{policy_id}")
 async def update_policy(policy_id: str, req_data: dict):
+    req_data = sanitize_json(req_data)
     # Check UUID
     try:
         pid = uuid.UUID(policy_id)
@@ -384,11 +399,12 @@ async def update_policy(policy_id: str, req_data: dict):
             await conn.close()
             raise HTTPException(status_code=404, detail="Policy not found")
             
-        policy_type = req_data.get("policy_type") or existing["policy_type"]
+        policy_type = sanitize_text(req_data.get("policy_type") or existing["policy_type"])
         config = req_data.get("config") or json.loads(existing["config"])
-        name = req_data.get("name") or existing["name"]
+        config = sanitize_json(config)
+        name = sanitize_text(req_data.get("name") or existing["name"])
         is_active = req_data.get("is_active") if req_data.get("is_active") is not None else True
-        operator = req_data.get("created_by") or "system"
+        operator = sanitize_text(req_data.get("created_by") or "system")
 
         # Validate configuration JSON schema
         validate_policy_json(policy_type, config)

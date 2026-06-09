@@ -88,6 +88,10 @@ async def validate_chain(from_id: int = None, to_id: int = None, database_url: s
                 if isinstance(p_dict.get("outputs"), str):
                     p_dict["outputs"] = json.loads(p_dict["outputs"])
                 prev_hash = compute_entry_hash(p_dict)
+            else:
+                # Retention can drop older partitions. In that case the first
+                # retained row is the validation anchor for the remaining window.
+                prev_hash = rows[0]["prev_entry_hash"]
                 
         for row in rows:
             r_dict = dict(row)

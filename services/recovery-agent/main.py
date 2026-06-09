@@ -10,11 +10,13 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 import httpx
 import asyncpg
+from aeos_shared import add_security_middleware, sanitize_text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("recovery-agent")
 
 app = FastAPI(title="Recovery Agent", version="1.0.0")
+add_security_middleware(app)
 
 # Service URLs from Environment
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aeos")
@@ -36,6 +38,7 @@ class NotifyFailureRequest(BaseModel):
 
 def classify_failure(error: str) -> str:
     """Heuristically classify the failure as transient or permanent."""
+    error = sanitize_text(error)
     err_lower = error.lower()
     
     # Permanent failure keywords (e.g. invalid schemas, authorization issues, missing resources)
@@ -72,6 +75,9 @@ async def log_audit_event(
     risk_score: Optional[float] = None
 ):
     """Log recovery action to the Memory Agent Audit Trail."""
+    event_type = sanitize_text(event_type)
+    agent_identity = sanitize_text(agent_identity)
+    action_description = sanitize_text(action_description)
     try:
         async with httpx.AsyncClient() as client:
             await client.post(
@@ -284,6 +290,10 @@ async def run_recovery_background(workflow_id: str, step_id: str, incident_id: s
 
 @app.post("/recovery/notify-failure")
 async def notify_failure(req: NotifyFailureRequest, background_tasks: BackgroundTasks):
+    req.workflow_id = sanitize_text(req.workflow_id)
+    req.step_id = sanitize_text(req.step_id)
+    req.incident_id = sanitize_text(req.incident_id)
+    req.error = sanitize_text(req.error)
     logger.info(f"Received failure notification for step {req.step_id} in workflow {req.workflow_id}")
     
     # Classify failure quickly (enforces the 5-second response latency SLA limit)

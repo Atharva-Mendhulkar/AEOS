@@ -17,6 +17,11 @@ function getToken(): string | null {
   return localStorage.getItem("aeos_token");
 }
 
+function resolveApiUrl(url: string): string {
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:80";
+  return url.startsWith("/") ? `${baseUrl}${url}` : url;
+}
+
 export async function fetcher(url: string) {
   const token = getToken();
   const headers: HeadersInit = {
@@ -28,8 +33,7 @@ export async function fetcher(url: string) {
   }
 
   // Prepend API base URL if relative to bypass Next.js rewrites dropping auth headers
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:80";
-  const finalUrl = url.startsWith("/") ? `${baseUrl}${url}` : url;
+  const finalUrl = resolveApiUrl(url);
 
   // cache: no-store prevents Next.js from caching 401s during SSR
   const res = await fetch(finalUrl, { headers, cache: "no-store" });
@@ -59,7 +63,7 @@ export const apiClient = {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const res = await fetch(url, {
+    const res = await fetch(resolveApiUrl(url), {
       method: "POST",
       headers,
       body: JSON.stringify(body),
@@ -76,12 +80,12 @@ export const apiClient = {
   async postMultipart(url: string, formData: FormData) {
     const token = getToken();
     const headers: HeadersInit = {};
-    
+
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
     }
 
-    const res = await fetch(url, {
+    const res = await fetch(resolveApiUrl(url), {
       method: "POST",
       headers,
       body: formData,
@@ -90,6 +94,49 @@ export const apiClient = {
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
       throw new Error(errorData.detail || "Failed to upload file");
+    }
+
+    return res.json();
+  },
+
+  async putMultipart(url: string, formData: FormData) {
+    const token = getToken();
+    const headers: HeadersInit = {};
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(resolveApiUrl(url), {
+      method: "PUT",
+      headers,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData?.error?.message || errorData.detail || "Failed to update resource");
+    }
+
+    return res.json();
+  },
+
+  async delete(url: string) {
+    const token = getToken();
+    const headers: HeadersInit = {};
+
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(resolveApiUrl(url), {
+      method: "DELETE",
+      headers,
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData?.error?.message || errorData.detail || "Failed to delete resource");
     }
 
     return res.json();

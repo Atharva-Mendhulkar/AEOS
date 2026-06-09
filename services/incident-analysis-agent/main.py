@@ -17,6 +17,7 @@ from aeos_shared import (
     AgentHealthStatus,
     HealthStatus,
     AgentType,
+    add_security_middleware,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +28,7 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://:aeosredis@redis:6379/0")
 CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.7"))
 
 app = FastAPI(title="Incident Analysis Agent", version="1.0.0")
+add_security_middleware(app)
 redis_conn = None
 subscriber_task = None
 

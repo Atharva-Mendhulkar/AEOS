@@ -7,11 +7,13 @@ from typing import List, Dict, Any, Optional
 import httpx
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
+from aeos_shared import add_security_middleware, sanitize_text
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("planner-agent")
 
 app = FastAPI(title="Planner Agent", version="1.0.0")
+add_security_middleware(app)
 
 # URLs and environment configurations
 COORDINATOR_URL = os.environ.get("COORDINATOR_URL", "http://coordinator:8001")
@@ -203,10 +205,10 @@ async def generate_raw_plan(incident_id: str, severity: str, root_sig: str, work
 
 # Helper: Orchestrate Plan Generation, Validation, Governance Check, and Dispatch
 async def execute_plan_generation_flow(req: GeneratePlanRequest):
-    workflow_id = req.workflow_id
-    incident_id = req.incident_id
-    severity = req.severity or "low"
-    root_sig = req.root_signature
+    workflow_id = sanitize_text(req.workflow_id)
+    incident_id = sanitize_text(req.incident_id)
+    severity = sanitize_text(req.severity or "low")
+    root_sig = sanitize_text(req.root_signature)
 
     retry_count = 0
     violations = []
@@ -291,6 +293,9 @@ async def generate_plan_endpoint(req: GeneratePlanRequest):
 
 @app.post("/planner/replan")
 async def replan_endpoint(req: ReplanRequest):
+    req.workflow_id = sanitize_text(req.workflow_id)
+    req.failed_step_id = sanitize_text(req.failed_step_id)
+    req.error = sanitize_text(req.error)
     logger.info(f"Re-planning requested for workflow {req.workflow_id} due to failed step {req.failed_step_id}")
     # Simulates replanning by injecting a recovery/restart step
     step_id = str(uuid.uuid4())

@@ -136,14 +136,14 @@ export default function RootLayoutClient({ children }: { children: React.ReactNo
             </label>
             <div className="relative">
               <select
-                value={user?.role || "visitor"}
+                value={user?.role || "read_only"}
                 onChange={handleRoleChange}
                 className="w-full bg-white border border-gray-300 text-xs font-mono text-black rounded px-2.5 py-1.5 focus:outline-none focus:border-black cursor-pointer appearance-none shadow-sm"
               >
                 <option value="admin">Administrator</option>
                 <option value="operator">Operator</option>
                 <option value="compliance">Compliance</option>
-                <option value="visitor">Auditor / Visitor</option>
+                <option value="read_only">Auditor / Read Only</option>
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
                 <svg className="fill-current h-3 w-3" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
