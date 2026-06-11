@@ -440,6 +440,17 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
       if (requires_escalation) {
         // Emit agent.state_changed (active) for escalation agent
         await emitAgentState("escalation", "active", 1, incidentId, workflow_id);
+
+        try {
+          await axios.post(`http://escalation-agent:8016/escalation/notify`, {
+            incident_id: incidentId,
+            workflow_id: workflow_id,
+            reason: "Incident classification requires manual operator escalation."
+          });
+          logger.info(`Called escalation-agent notify for incident ${incidentId}`);
+        } catch (escErr: any) {
+          logger.error(`Failed to invoke escalation-agent: ${escErr.message}`);
+        }
       }
 
       // Invoke Planner Agent if not escalated

@@ -394,33 +394,35 @@ async def get_pending_escalations(
     db: asyncpg.Connection = Depends(get_db)
 ):
     cache_read_response(response)
-    # Query suspended workflow steps as pending escalations
-    rows = await db.fetch(
-        """
-        SELECT id, workflow_id, agent_type, action, status, risk_score, created_at, updated_at
-        FROM workflow_steps
-        WHERE status = 'suspended'
-        ORDER BY created_at DESC
-        """
-    )
-    
-    # Map to PendingEscalation format
-    pending = []
-    for r in rows:
-        action_desc = json.loads(r["action"]) if isinstance(r["action"], str) else r["action"]
-        pending.append({
-            "id": str(r["id"]),
-            "workflow_id": str(r["workflow_id"]),
-            "step_id": str(r["id"]),
-            "incident_id": str(r["workflow_id"]), # Fallback/mapping
-            "incident_summary": action_desc.get("tool", "Pending action approval"),
-            "risk_score": r["risk_score"] or 7.0,
-            "status": "pending",
-            "tier": "tier_1",
-            "created_at": r["created_at"].isoformat(),
-            "time_pending": r["created_at"].isoformat()
-        })
-    return pending
+    try:
+        r_client = redis.from_url(REDIS_URL, decode_responses=True)
+        keys = await r_client.keys("escalation:active:*")
+        pending = []
+        for key in keys:
+            data_str = await r_client.get(key)
+            if data_str:
+                esc = json.loads(data_str)
+                # Ensure the format matches what the frontend expects
+                pending.append({
+                    "id": esc.get("escalation_id"),
+                    "workflow_id": esc.get("workflow_id"),
+                    "step_id": esc.get("step_id") or esc.get("escalation_id"),
+                    "incident_id": esc.get("incident_id"),
+                    "incident_summary": esc.get("reason", "Pending action approval"),
+                    "risk_score": 7.0,
+                    "status": esc.get("status", "pending"),
+                    "tier": f"tier_{esc.get('tier', 1)}",
+                    "created_at": esc.get("created_at"),
+                    "time_pending": esc.get("created_at")
+                })
+        await r_client.close()
+        
+        # Sort by created_at descending
+        pending.sort(key=lambda x: x["created_at"], reverse=True)
+        return pending
+    except Exception as e:
+        logger.error(f"Failed to fetch escalations from Redis: {e}")
+        return []
 
 @app.post("/api/v1/escalations/{id}/respond")
 async def respond_escalation(

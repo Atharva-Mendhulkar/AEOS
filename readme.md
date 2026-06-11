@@ -361,6 +361,17 @@ python3 run_payloads.py
 ```
 This will automatically inject multimodal files (logs, text, JSON, screenshots, and audio) into the pipeline. You can watch the `Incident Analysis Agent` and `Planner Agent` process these workflows live in your Next.js dashboard!
 
+### Testing Full 9-Agent Orchestration
+We provide a comprehensive JSON test payload that orchestrates all specialist agents. Run it with:
+```bash
+python3 run_orchestration_test.py
+```
+This script injects a complex simulated incident requiring DB failover, compliance checks, and manual operator approval, demonstrating the interaction of the Planner, Governance, Operations, Compliance, Escalation, and Recovery agents.
+
+### Note on DAG Visualizer
+If you ingest an ambiguous file (e.g., `system_summary.pdf` or `glitch.txt`) where the `Incident Analysis Agent` cannot extract a clear error signature, it will return a low confidence score (< 0.70). 
+When this happens, AEOS **immediately escalates** the incident to the `Escalation Agent` for human review, bypassing the `Planner Agent`. Consequently, the DAG Visualizer will correctly remain empty for these incidents until a human provides clarification. To see the DAG Visualizer populate, select incidents with clear errors (like `app_crash.log` or `orchestration_comprehensive.json`).
+
 ---
 
 # **Alignment With Hackathon Tracks**

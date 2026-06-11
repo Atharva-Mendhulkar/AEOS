@@ -1,0 +1,25 @@
+{
+  "timestamp": "2026-06-11T14:00:00Z",
+  "incident_type": "distributed_outage_with_policy_violation",
+  "severity": "critical",
+  "confidence_score": 0.95,
+  "affected_services": [
+    "primary_database",
+    "auth_service",
+    "compliance_logger"
+  ],
+  "description": "The primary PostgreSQL database has experienced a connection drop resulting in cascading errors across the microservices architecture. Simultaneously, GDPR compliance logs have stopped being forwarded to the central SIEM. Automated remediation requires an irreversible database failover and manual operator approval due to high data sensitivity. Previous automated restart script is corrupted and fails on execution.",
+  "flags": {
+    "irreversible_actions_required": true,
+    "production_scope": true,
+    "data_sensitivity": "high",
+    "compliance_violation_detected": "GDPR_logging_interrupted"
+  },
+  "diagnostics": {
+    "db_ping": "timeout",
+    "auth_health_status": "503 Service Unavailable",
+    "cpu_usage": 99.5,
+    "error_rate": "100%"
+  },
+  "operator_notes": "Requires escalation for manual override of DB failover. Operations agent must gather logs and attempt remediate_failure. Compliance agent must verify GDPR logging. Recovery agent must replan if the corrupted script fails again."
+}

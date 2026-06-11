@@ -1,0 +1,1 @@
+We received a user report about a glitch, but the logs are ambiguous.
