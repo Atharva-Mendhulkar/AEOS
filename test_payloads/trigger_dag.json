@@ -1,0 +1,5 @@
+{
+  "incident": "production_database_outage",
+  "message": "We are experiencing a critical error in the database. The system threw a timeout error during the restart process.",
+  "severity": "high"
+}

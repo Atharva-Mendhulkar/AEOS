@@ -61,8 +61,8 @@ async def evaluate_llm_risk(action: Dict[str, Any], agent_type: str, policy_cont
             score = 6.5
             factors = ["Mock LLM: Routine remediation action"]
         else:
-            score = 5.5
-            factors = ["Mock LLM: General agent utility task"]
+            score = 7.5
+            factors = ["Mock LLM: General agent utility task (Elevated risk for testing Escalation)"]
     else:
         # Call Gemini Pro
         import google.generativeai as genai

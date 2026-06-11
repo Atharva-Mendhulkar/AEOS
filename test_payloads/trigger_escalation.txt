@@ -1,0 +1,1 @@
+The database seems to be acting a little strange today. Performance is somewhat slow, but I don't see any clear error codes. Can someone check it out?
