@@ -326,6 +326,45 @@ Provides live operational visibility into:
 
 ---
 
+# **Setup and Run Instructions**
+
+## **1. Prerequisites**
+- **Docker** and **Docker Compose** installed.
+- **Node.js** (v18+) and **npm** installed.
+- **Python** (v3.10+) installed.
+
+## **2. Environment Variables**
+Clone the repository and configure your environment variables:
+```bash
+cp .env.example .env
+```
+Ensure that you populate `.env` with your relevant API keys (`GEMINI_API_KEY`, `FEATHERLESS_API_KEY`, `JWT_SECRET`, etc.).
+
+## **3. Launch the Architecture**
+AEOS relies on 13 interconnected microservices, an Nginx reverse proxy, PostgreSQL, and Redis. Spin up the entire architecture using Docker Compose:
+
+```bash
+docker compose up -d --build
+```
+*Note: The Nginx proxy will automatically bind to port 80 and handle all routing between the frontend, API gateway, and websocket observability service.*
+
+## **4. Access the Dashboard**
+Once the containers are healthy, open your browser and navigate to:
+```text
+http://localhost
+```
+
+## **5. Running the Test Ingestion Suite**
+To verify that the multi-agent orchestration is working, you can push the provided test payloads into the system:
+
+```bash
+cd test_payloads
+python3 run_payloads.py
+```
+This will automatically inject multimodal files (logs, text, JSON, screenshots, and audio) into the pipeline. You can watch the `Incident Analysis Agent` and `Planner Agent` process these workflows live in your Next.js dashboard!
+
+---
+
 # **Alignment With Hackathon Tracks**
 
 |**Track**|**How AEOS Aligns**|
