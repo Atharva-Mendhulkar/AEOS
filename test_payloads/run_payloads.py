@@ -28,7 +28,7 @@ def get_format_and_mime(ext):
         ".log": ("text", "text/plain"),
         ".json": ("json", "application/json"),
         ".png": ("image", "image/png"),
-        ".pdf": ("document", "application/pdf"),
+        ".pdf": ("pdf", "application/pdf"),
         ".m4a": ("audio", "audio/mp4")
     }
     return mapping.get(ext, ("unknown", "application/octet-stream"))

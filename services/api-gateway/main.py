@@ -317,6 +317,36 @@ async def get_workflow(
         except json.JSONDecodeError:
             pass
             
+    # Fetch live steps to update status in the DAG Visualizer
+    steps_rows = await db.fetch(
+        "SELECT id, agent_type, action, status, depends_on, output FROM workflow_steps WHERE workflow_id = $1",
+        id
+    )
+    
+    live_steps = []
+    for s in steps_rows:
+        s_dict = dict(s)
+        # Convert UUIDs to strings
+        s_dict["id"] = str(s_dict["id"])
+        if isinstance(s_dict.get("action"), str):
+            try:
+                s_dict["action"] = json.loads(s_dict["action"])
+            except json.JSONDecodeError:
+                pass
+        if isinstance(s_dict.get("output"), str):
+            try:
+                s_dict["output"] = json.loads(s_dict["output"])
+            except json.JSONDecodeError:
+                pass
+        live_steps.append(s_dict)
+        
+    if "plan" not in data or not isinstance(data["plan"], dict):
+        data["plan"] = {}
+        
+    # Only override if we have steps in the DB
+    if live_steps:
+        data["plan"]["steps"] = live_steps
+        
     return data
 
 @app.post("/api/v1/workflows/{id}/cancel")

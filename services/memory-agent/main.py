@@ -324,6 +324,8 @@ async def query_context(req: ContextQueryRequest):
         logger.error(f"Error querying context: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+audit_lock = asyncio.Lock()
+
 @app.post("/memory/audit")
 async def append_audit(entry: AuditEntry):
     """Append a hash-chained, tamper-evident entry to the audit trail."""
@@ -332,44 +334,45 @@ async def append_audit(entry: AuditEntry):
         inc_uuid = uuid.UUID(entry.incident_id) if entry.incident_id else None
         wf_uuid = uuid.UUID(entry.workflow_id) if entry.workflow_id else None
         
-        async with db_pool.acquire() as conn:
-            # 1. Fetch latest entry to get its hash
-            # Since audit_trail is partitioned, ORDER BY id DESC works or ordering by timestamp, id
-            prev_row = await conn.fetchrow(
-                """
-                SELECT event_type, timestamp, agent_identity, incident_id, workflow_id, 
-                       action_description, inputs, outputs, risk_score, prev_entry_hash
-                FROM audit_trail
-                ORDER BY id DESC LIMIT 1
-                """
-            )
-            
-            if not prev_row:
-                prev_entry_hash = "genesis"
-            else:
-                prev_entry_hash = compute_entry_hash(dict(prev_row))
+        async with audit_lock:
+            async with db_pool.acquire() as conn:
+                # 1. Fetch latest entry to get its hash
+                # Since audit_trail is partitioned, ORDER BY id DESC works or ordering by timestamp, id
+                prev_row = await conn.fetchrow(
+                    """
+                    SELECT event_type, timestamp, agent_identity, incident_id, workflow_id, 
+                           action_description, inputs, outputs, risk_score, prev_entry_hash
+                    FROM audit_trail
+                    ORDER BY id DESC LIMIT 1
+                    """
+                )
                 
-            # 2. Insert new entry with prev_entry_hash
-            inputs_json = json.dumps(sanitize_json(entry.inputs or {}))
-            outputs_json = json.dumps(sanitize_json(entry.outputs or {}))
-            
-            await conn.execute(
-                """
-                INSERT INTO audit_trail (
-                    event_type, timestamp, agent_identity, incident_id, workflow_id,
-                    action_description, inputs, outputs, risk_score, prev_entry_hash, created_at
-                ) VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-                """,
-                entry.event_type,
-                entry.agent_identity,
-                inc_uuid,
-                wf_uuid,
-                entry.action_description,
-                inputs_json,
-                outputs_json,
-                entry.risk_score,
-                prev_entry_hash
-            )
+                if not prev_row:
+                    prev_entry_hash = "genesis"
+                else:
+                    prev_entry_hash = compute_entry_hash(dict(prev_row))
+                    
+                # 2. Insert new entry with prev_entry_hash
+                inputs_json = json.dumps(sanitize_json(entry.inputs or {}))
+                outputs_json = json.dumps(sanitize_json(entry.outputs or {}))
+                
+                await conn.execute(
+                    """
+                    INSERT INTO audit_trail (
+                        event_type, timestamp, agent_identity, incident_id, workflow_id,
+                        action_description, inputs, outputs, risk_score, prev_entry_hash, created_at
+                    ) VALUES ($1, NOW(), $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                    """,
+                    entry.event_type,
+                    entry.agent_identity,
+                    inc_uuid,
+                    wf_uuid,
+                    entry.action_description,
+                    inputs_json,
+                    outputs_json,
+                    entry.risk_score,
+                    prev_entry_hash
+                )
         return {"status": "audited", "prev_entry_hash": prev_entry_hash}
     except Exception as e:
         logger.error(f"Failed to append to audit trail: {str(e)}")

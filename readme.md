@@ -350,9 +350,7 @@ docker compose up -d --build
 
 ## **4. Access the Dashboard**
 Once the containers are healthy, open your browser and navigate to:
-```text
-http://localhost
-```
+`http://localhost`
 
 ## **5. Running the Test Ingestion Suite**
 To verify that the multi-agent orchestration is working, you can push the provided test payloads into the system:
