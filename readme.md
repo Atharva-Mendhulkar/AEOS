@@ -1,10 +1,24 @@
-# **AEOS Control Panel**
+<div align="center">
+  
+  # AEOS Control Panel
+  
+  **Autonomous Enterprise Operations System**
+  
+  *From AI copilots to autonomous operational systems.*
+  
+  <br />
 
-## **Autonomous Enterprise Operations System**
+  ![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
+  ![Next JS](https://img.shields.io/badge/Next-black?style=for-the-badge&logo=next.js&logoColor=white)
+  ![NodeJS](https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white)
+  ![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+  ![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
+  ![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+  ![Redis](https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white)
+  ![Postgres](https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white)
+  ![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white)
 
-### **Tagline**
-
-From AI copilots to autonomous operational systems.
+</div>
 
 ---
 
@@ -226,70 +240,65 @@ Every autonomous action is observable, attributable, and replayable.
 
 # **System Architecture**
 
-## **Planner Layer**
+```mermaid
+flowchart TD
+    %% Inputs
+    subgraph Inputs ["Multimodal Inputs"]
+        I1(Text/Logs)
+        I2(PDFs/Docs)
+        I3(Voice/Audio)
+        I4(Screenshots)
+    end
 
-Decomposes enterprise objectives into executable workflows.
+    %% API Gateway & Coordinator
+    subgraph Core ["Orchestration & Coordination"]
+        AG[API Gateway]
+        CA[Coordination Layer / Workflow Engine]
+        PL[Planner Agent]
+    end
 
----
+    %% Specialists
+    subgraph Specialists ["Specialist Agent Layer"]
+        SA1[Operations Agent]
+        SA2[Compliance Agent]
+        SA3[Incident Analysis Agent]
+        SA4[Validation Agent]
+    end
 
-## **Coordination Layer**
+    %% Governance & Safety
+    subgraph Governance ["Runtime Governance Layer"]
+        GOV1[Permission Enforcement]
+        GOV2[Risk Scoring]
+        GOV3[Approval Gates]
+    end
 
-Routes tasks between specialized agents and manages dependencies.
+    %% Recovery
+    subgraph Recovery ["Recovery & Escalation Layer"]
+        RA[Recovery Agent]
+        EA[Escalation Agent]
+    end
 
----
+    %% Storage & Observability
+    subgraph Infrastructure ["State & Observability"]
+        MEM[(Memory & State Layer)]
+        OBS[Live Observability Dashboard]
+    end
 
-## **Specialist Agent Layer**
-
-Domain-specific agents execute operational tasks.
-
-Examples:
-
-- support operations
-- compliance analysis
-- remediation execution
-- operational analytics
-
----
-
-## **Runtime Governance Layer**
-
-Validates execution safety and enforces operational policies.
-
-Includes:
-
-- intent validation
-- permission enforcement
-- execution risk analysis
-- anomaly monitoring
-- approval workflows
-
----
-
-## **Memory & State Layer**
-
-Maintains persistent workflow state and long-term operational context.
-
----
-
-## **Recovery & Escalation Layer**
-
-Handles:
-
-- workflow failures
-- retries
-- replanning
-- human escalation
-
----
-
-## **Observability Layer**
-
-Provides live operational visibility into:
-
-- workflows
-- agent communication
-- execution history
-- runtime events
+    Inputs --> AG
+    AG --> CA
+    CA <--> PL
+    CA <--> Specialists
+    CA --> Governance
+    Governance -->|Suspend/Halt| EA
+    Specialists -->|Fail| RA
+    RA -->|Replan| PL
+    EA -->|Manual Override| CA
+    
+    CA -.-> MEM
+    CA -.-> OBS
+    Specialists -.-> MEM
+    Governance -.-> MEM
+```
 
 ---
 
@@ -374,17 +383,7 @@ When this happens, AEOS **immediately escalates** the incident to the `Escalatio
 
 ---
 
-# **Alignment With Hackathon Tracks**
 
-|**Track**|**How AEOS Aligns**|
-|---|---|
-|Intelligent Reasoning|Dynamic replanning, adaptive execution, autonomous recovery|
-|Agentic Workflows|Multi-step orchestration, API/tool execution, persistent workflows|
-|Enterprise Utility|Real-world enterprise operations automation|
-|Multimodal Intelligence|Processing voice, documents, screenshots, logs, PDFs|
-|Collaborative Systems|Multi-agent coordination and specialization|
-
----
 
 # **Why AEOS Is Different**
 
