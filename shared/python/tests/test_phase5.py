@@ -126,7 +126,7 @@ async def test_reconnection_replay_on_subscribe(mock_redis_func):
 
 @pytest.mark.asyncio
 @patch("obs_service.redis.from_url")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 async def test_event_ingestion_and_broadcast_sla(mock_post, mock_redis_func):
     # Setup mocks
     mock_redis = MagicMock()
@@ -162,7 +162,7 @@ async def test_event_ingestion_and_broadcast_sla(mock_post, mock_redis_func):
     
     # Verify post to Memory Agent
     mock_post.assert_called_once()
-    assert "/memory/audit" in str(mock_post.call_args[0][0])
+    assert "/memory/audit" in str(mock_post.call_args[0][1])
     
     # Verify room-scoped and global Socket.IO broadcasts.
     assert obs_service.sio.emit.call_count == 2

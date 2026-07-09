@@ -61,7 +61,7 @@ def test_ingest_auth_failure():
     assert response.status_code == 401
     assert "Authorization header missing or invalid scheme" in response.json()["error"]["message"]
 
-@patch("httpx.AsyncClient.request", new_callable=AsyncMock)
+@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
 def test_ingest_unsupported_format(mock_post):
     # Mock DB Connection
     mock_conn = AsyncMock()
@@ -99,7 +99,7 @@ def test_ingest_oversized_file():
     assert response.status_code == 413
     assert "exceeds maximum limit" in response.json()["error"]["message"]
 
-@patch("httpx.AsyncClient.request", new_callable=AsyncMock)
+@patch("httpx.AsyncClient.post", new_callable=AsyncMock)
 def test_ingest_text_success(mock_post):
     mock_conn = AsyncMock()
     mock_conn.execute = AsyncMock()
@@ -123,7 +123,7 @@ def test_ingest_text_success(mock_post):
     assert mock_conn.execute.called
     # Verify it posted immediately to Coordinator
     assert mock_post.called
-    assert "coordinator" in mock_post.call_args[0][1]
+    assert "coordinator" in mock_post.call_args[0][0]
 
 @patch("api_gateway.transcribe_audio", new_callable=AsyncMock)
 def test_ingest_audio_preprocessing_trigger(mock_transcribe):

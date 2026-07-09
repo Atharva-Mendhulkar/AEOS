@@ -193,7 +193,7 @@ async def test_memory_agent_save_workflow(mock_pool):
 @pytest.mark.asyncio
 @patch("recovery_agent.asyncpg.connect")
 @patch("recovery_agent.log_audit_event")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 async def test_recovery_agent_transient_failure_retry(mock_post, mock_audit, mock_db_conn):
     mock_conn = AsyncMock()
     mock_db_conn.return_value = mock_conn
@@ -232,7 +232,7 @@ async def test_recovery_agent_transient_failure_retry(mock_post, mock_audit, moc
 @pytest.mark.asyncio
 @patch("recovery_agent.asyncpg.connect")
 @patch("recovery_agent.log_audit_event")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 async def test_recovery_agent_permanent_failure_replan(mock_post, mock_audit, mock_db_conn):
     client = TestClient(recovery_agent.app)
     
@@ -256,7 +256,7 @@ async def test_recovery_agent_permanent_failure_replan(mock_post, mock_audit, mo
 @pytest.mark.asyncio
 @patch("escalation_agent.asyncpg.connect")
 @patch("escalation_agent.redis.from_url")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 async def test_escalation_agent_notify_and_resolve(mock_post, mock_redis_func, mock_db_conn):
     mock_conn = AsyncMock()
     mock_db_conn.return_value = mock_conn
@@ -315,7 +315,7 @@ async def test_escalation_agent_notify_and_resolve(mock_post, mock_redis_func, m
 
 @pytest.mark.asyncio
 @patch("escalation_agent.redis.from_url")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 async def test_escalation_agent_timeout_escalation(mock_post, mock_redis_func):
     mock_redis = AsyncMock()
     # Mock an escalation created 2 seconds ago (timeout limit set to 0.1s in env)
@@ -348,8 +348,8 @@ async def test_escalation_agent_timeout_escalation(mock_post, mock_redis_func):
 @pytest.mark.asyncio
 @patch("asyncpg.connect")
 @patch("redis.asyncio.from_url")
-@patch("httpx.AsyncClient.get")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
+@patch("aeos_shared.http_client.request_with_retry")
 async def test_workflow_state_restoration(mock_post, mock_get, mock_redis_func, mock_db_conn):
     # Mock Memory Agent response returning 1 active workflow
     mock_wf_id = str(uuid.uuid4())
@@ -402,7 +402,7 @@ async def test_workflow_state_restoration(mock_post, mock_get, mock_redis_func, 
 
 @pytest.mark.asyncio
 @patch("operations_agent.redis.from_url")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 async def test_operations_specialist_agent_flow(mock_post, mock_redis_func):
     mock_redis = MagicMock()
     mock_redis.close = AsyncMock()

@@ -56,7 +56,7 @@ def test_validate_plan_structure_missing_dep():
     ]
     assert planner_agent.validate_plan_structure(steps) is False
 
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 def test_planner_generate_success(mock_post):
     # Mocking external calls (Governance validates, Memory persists, Coordinator routes)
     mock_post.return_value = MagicMock(
@@ -82,7 +82,7 @@ def test_planner_generate_success(mock_post):
     # Check topological order is validated and returns valid response
     assert steps[1]["depends_on"] == [steps[0]["id"]]
 
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 def test_planner_governance_retry_and_escalate(mock_post):
     # Mock Governance validate-plan returns invalid: True (violations found)
     mock_post.return_value = MagicMock(
@@ -111,7 +111,7 @@ def test_planner_governance_retry_and_escalate(mock_post):
 # Workflow Engine Tests
 # ---------------------------------------------------------------------------
 
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 def test_workflow_execute_step_low_risk(mock_post):
     # Mock Governance validate-action returns low risk score (5.0, approved)
     # Mock Coordinator step-complete is called
@@ -143,7 +143,7 @@ def test_workflow_execute_step_low_risk(mock_post):
     assert len(complete_call) > 0
 
 @patch("asyncpg.connect")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 def test_workflow_execute_step_high_risk_suspends(mock_post, mock_db):
     # Mock Governance returns high risk (8.0, approved=True, but 7.0<=risk<9.0 suspends)
     mock_post.return_value = MagicMock(
@@ -180,7 +180,7 @@ def test_workflow_execute_step_high_risk_suspends(mock_post, mock_db):
     # Ensure DB is updated to set status to suspended
     assert mock_conn.execute.called
 
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 def test_workflow_execute_step_critical_risk_halts(mock_post):
     # Mock Governance returns critical risk (9.5, approved=False)
     mock_post.return_value = MagicMock(

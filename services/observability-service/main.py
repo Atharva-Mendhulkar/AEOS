@@ -1,3 +1,4 @@
+from aeos_shared import get, post, put, delete
 import os
 import sys
 import time

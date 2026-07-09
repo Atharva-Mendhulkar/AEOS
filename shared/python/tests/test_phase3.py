@@ -197,7 +197,7 @@ def test_policy_config_schema_validation():
 @pytest.mark.asyncio
 @patch("anomaly.detector.get_redis_client")
 @patch("anomaly.detector.get_anomaly_policy")
-@patch("httpx.AsyncClient.post")
+@patch("aeos_shared.http_client.request_with_retry")
 async def test_anomaly_detection_limits(mock_post, mock_policy, mock_redis_client):
     # Setup mock policy limits
     mock_policy.return_value = {
