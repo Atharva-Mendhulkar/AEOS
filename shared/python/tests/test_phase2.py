@@ -27,9 +27,12 @@ workflow_engine = load_module("workflow_engine", os.path.join(BASE_DIR, "service
 
 @pytest.fixture(autouse=True)
 def mock_redis_lock():
-    with patch("workflow_engine.RedisDistributedLock.__aenter__", new_callable=AsyncMock) as mock_aenter, \
-         patch("workflow_engine.RedisDistributedLock.__aexit__", new_callable=AsyncMock) as mock_aexit:
-        yield
+    with patch("workflow_engine.redis_async.from_url") as mock_from_url:
+        mock_conn = AsyncMock()
+        mock_conn.set.return_value = True
+        mock_from_url.return_value = mock_conn
+        yield mock_conn
+
 
 
 from fastapi.testclient import TestClient
