@@ -1,0 +1,48 @@
+{{- if .Values.postgres.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: aeos-postgres
+  labels:
+    app: aeos-postgres
+    part-of: aeos
+spec:
+  serviceName: aeos-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aeos-postgres
+  template:
+    metadata:
+      labels:
+        app: aeos-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: {{ .Values.postgres.image }}
+          ports:
+            - containerPort: {{ .Values.postgres.port }}
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "aeos"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: aeos-secrets
+                  key: POSTGRES_PASSWORD
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aeos-postgres
+  labels:
+    app: aeos-postgres
+    part-of: aeos
+spec:
+  ports:
+    - port: {{ .Values.postgres.port }}
+  selector:
+    app: aeos-postgres
+{{- end }}

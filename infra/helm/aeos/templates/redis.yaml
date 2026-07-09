@@ -1,0 +1,38 @@
+{{- if .Values.redis.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aeos-redis
+  labels:
+    app: aeos-redis
+    part-of: aeos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aeos-redis
+  template:
+    metadata:
+      labels:
+        app: aeos-redis
+    spec:
+      containers:
+        - name: redis
+          image: {{ .Values.redis.image }}
+          ports:
+            - containerPort: {{ .Values.redis.port }}
+          args: ["--requirepass", "aeosredis"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aeos-redis
+  labels:
+    app: aeos-redis
+    part-of: aeos
+spec:
+  ports:
+    - port: {{ .Values.redis.port }}
+  selector:
+    app: aeos-redis
+{{- end }}

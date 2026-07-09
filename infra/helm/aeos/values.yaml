@@ -1,0 +1,151 @@
+global:
+  databaseUrl: "postgresql://postgres:postgres@aeos-postgres:5432/aeos"
+  redisUrl: "redis://:aeosredis@aeos-redis:6379/0"
+  kafkaUrl: "aeos-kafka:29092"
+  celeryBrokerUrl: "redis://:aeosredis@aeos-redis:6379/0"
+
+secrets:
+  jwtSecret: "test-jwt-secret-key-for-aeos-123456789"
+  geminiApiKey: "mock-key"
+  postgresPassword: "postgres"
+
+postgres:
+  enabled: true
+  image: "pgvector/pgvector:pg16"
+  port: 5432
+redis:
+  enabled: true
+  image: "redis:7.2-alpine"
+  port: 6379
+kafka:
+  enabled: true
+  image: "confluentinc/cp-kafka:7.5.0"
+  port: 29092
+  zookeeperImage: "confluentinc/cp-zookeeper:7.5.0"
+
+microservices:
+  api-gateway:
+    image: aeos/api-gateway
+    tag: latest
+    port: 8000
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      GOVERNANCE_URL: "http://aeos-governance-service:8020"
+      OBSERVABILITY_URL: "http://aeos-observability-service:8040"
+      ESCALATION_URL: "http://aeos-escalation-agent:8016"
+  
+  coordinator:
+    image: aeos/coordinator
+    tag: latest
+    port: 8001
+    env:
+      PLANNER_AGENT_URL: "http://aeos-planner-agent:8010"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      OBSERVABILITY_URL: "http://aeos-observability-service:8040"
+      ESCALATION_URL: "http://aeos-escalation-agent:8016"
+  
+  governance-service:
+    image: aeos/governance-service
+    tag: latest
+    port: 8020
+    env:
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      OBSERVABILITY_URL: "http://aeos-observability-service:8040"
+  
+  workflow-engine:
+    image: aeos/workflow-engine
+    tag: latest
+    port: 8030
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      OBSERVABILITY_URL: "http://aeos-observability-service:8040"
+      CELERY_ALWAYS_EAGER: "true"
+      STEP_EXECUTION_TIMEOUT_SECONDS: "300"
+  
+  observability-service:
+    image: aeos/observability-service
+    tag: latest
+    port: 8040
+    env:
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      EVENT_BUFFER_SIZE: "1000"
+      AUDIT_RETENTION_DAYS: "90"
+  
+  incident-analysis-agent:
+    image: aeos/incident-analysis-agent
+    tag: latest
+    port: 8011
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      ESCALATION_URL: "http://aeos-escalation-agent:8016"
+  
+  compliance-agent:
+    image: aeos/compliance-agent
+    tag: latest
+    port: 8012
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      ESCALATION_URL: "http://aeos-escalation-agent:8016"
+      GOVERNANCE_URL: "http://aeos-governance-service:8020"
+  
+  validation-agent:
+    image: aeos/validation-agent
+    tag: latest
+    port: 8013
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      ESCALATION_URL: "http://aeos-escalation-agent:8016"
+  
+  operations-agent:
+    image: aeos/operations-agent
+    tag: latest
+    port: 8014
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      ESCALATION_URL: "http://aeos-escalation-agent:8016"
+  
+  planner-agent:
+    image: aeos/planner-agent
+    tag: latest
+    port: 8010
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      ESCALATION_AGENT_URL: "http://aeos-escalation-agent:8016"
+      GOVERNANCE_URL: "http://aeos-governance-service:8020"
+  
+  escalation-agent:
+    image: aeos/escalation-agent
+    tag: latest
+    port: 8016
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      OBSERVABILITY_URL: "http://aeos-observability-service:8040"
+      ESCALATION_TIMEOUT_SECONDS: "3600"
+      ESCALATION_TIER2_TIMEOUT_SECONDS: "86400"
+  
+  memory-agent:
+    image: aeos/memory-agent
+    tag: latest
+    port: 8017
+    env:
+      OBSERVABILITY_URL: "http://aeos-observability-service:8040"
+      RISK_THRESHOLD_HIGH: "7.0"
+      RISK_THRESHOLD_CRITICAL: "9.0"
+      POLICY_RELOAD_TIMEOUT_SECONDS: "30"
+      ANOMALY_BASELINE_WINDOW: "10"
+  
+  recovery-agent:
+    image: aeos/recovery-agent
+    tag: latest
+    port: 8015
+    env:
+      COORDINATOR_URL: "http://aeos-coordinator:8001"
+      MEMORY_AGENT_URL: "http://aeos-memory-agent:8017"
+      PLANNER_URL: "http://aeos-planner-agent:8010"

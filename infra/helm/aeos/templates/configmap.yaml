@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aeos-config
+  labels:
+    app: aeos-config
+data:
+  DATABASE_URL: {{ .Values.global.databaseUrl | quote }}
+  REDIS_URL: {{ .Values.global.redisUrl | quote }}
+  KAFKA_URL: {{ .Values.global.kafkaUrl | quote }}
+  CELERY_BROKER_URL: {{ .Values.global.celeryBrokerUrl | quote }}

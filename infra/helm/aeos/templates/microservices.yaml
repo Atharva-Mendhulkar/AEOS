@@ -1,0 +1,83 @@
+{{- range $name, $config := .Values.microservices }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aeos-{{ $name }}
+  labels:
+    app: aeos-{{ $name }}
+    part-of: aeos
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aeos-{{ $name }}
+  template:
+    metadata:
+      labels:
+        app: aeos-{{ $name }}
+    spec:
+      containers:
+        - name: {{ $name }}
+          image: "{{ $config.image }}:{{ $config.tag }}"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: {{ $config.port }}
+          envFrom:
+            - configMapRef:
+                name: aeos-config
+            - secretRef:
+                name: aeos-secrets
+          env:
+          {{- if $config.env }}
+          {{- range $key, $value := $config.env }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
+          {{- end }}
+          # Expose gRPC port if applicable (Planner & Memory)
+          {{- if eq $name "planner-agent" }}
+            - name: GRPC_PORT
+              value: "50051"
+          {{- end }}
+          {{- if eq $name "memory-agent" }}
+            - name: GRPC_PORT
+              value: "50052"
+          {{- end }}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: aeos-{{ $name }}
+  labels:
+    app: aeos-{{ $name }}
+    part-of: aeos
+spec:
+  ports:
+    - name: http
+      port: {{ $config.port }}
+      targetPort: {{ $config.port }}
+      protocol: TCP
+    {{- if eq $name "planner-agent" }}
+    - name: grpc
+      port: 50051
+      targetPort: 50051
+      protocol: TCP
+    {{- end }}
+    {{- if eq $name "memory-agent" }}
+    - name: grpc
+      port: 50052
+      targetPort: 50052
+      protocol: TCP
+    {{- end }}
+  selector:
+    app: aeos-{{ $name }}
+{{- end }}
