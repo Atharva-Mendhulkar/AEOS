@@ -13,8 +13,12 @@ from fastapi import FastAPI, HTTPException, Request, Response, status, Query
 from pydantic import BaseModel, Field
 import asyncpg
 import redis.asyncio as redis
-import grpc
-from aeos_shared.grpc import agent_service_pb2, agent_service_pb2_grpc
+try:
+    import grpc
+    from aeos_shared.grpc import agent_service_pb2, agent_service_pb2_grpc
+    _GRPC_AVAILABLE = True
+except ImportError:
+    _GRPC_AVAILABLE = False
 from aeos_shared import add_security_middleware, sanitize_json, sanitize_model_text_fields, sanitize_text
 from memory_jobs.retention import enforce_retention
 

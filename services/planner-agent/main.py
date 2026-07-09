@@ -11,8 +11,12 @@ from typing import List, Dict, Any, Optional
 import httpx
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
-import grpc
-from aeos_shared.grpc import agent_service_pb2, agent_service_pb2_grpc
+try:
+    import grpc
+    from aeos_shared.grpc import agent_service_pb2, agent_service_pb2_grpc
+    _GRPC_AVAILABLE = True
+except ImportError:
+    _GRPC_AVAILABLE = False
 from aeos_shared import add_security_middleware, sanitize_text
 
 logging.basicConfig(level=logging.INFO)
