@@ -11,6 +11,24 @@ const mockSrem = jest.fn().mockResolvedValue(1);
 const mockScard = jest.fn().mockResolvedValue(0);
 const mockDel = jest.fn().mockResolvedValue(1);
 
+const mockSend = jest.fn().mockResolvedValue([]);
+
+jest.mock('kafkajs', () => {
+  return {
+    Kafka: jest.fn().mockImplementation(() => {
+      return {
+        producer: jest.fn().mockImplementation(() => {
+          return {
+            connect: jest.fn().mockResolvedValue(true),
+            send: mockSend,
+            disconnect: jest.fn().mockResolvedValue(true),
+          };
+        }),
+      };
+    }),
+  };
+});
+
 jest.mock('ioredis', () => {
   return jest.fn().mockImplementation(() => {
     return {
@@ -81,7 +99,10 @@ describe('Coordinator Express App', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('routing');
     expect(res.body.task_id).toBeDefined();
-    expect(mockPublish).toHaveBeenCalledWith('agent:incident_analysis:tasks', expect.any(String));
+    expect(mockSend).toHaveBeenCalledWith({
+      topic: 'agent_incident_analysis_tasks',
+      messages: [{ value: expect.any(String) }]
+    });
   });
 
   test('POST /coordinator/plan-ready writes plan and triggers first steps', async () => {
@@ -133,7 +154,10 @@ describe('Coordinator Express App', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('executing');
     expect(res.body.activated_steps).toContain(step1Id);
-    expect(mockPublish).toHaveBeenCalledWith('agent:operations:tasks', expect.any(String));
+    expect(mockSend).toHaveBeenCalledWith({
+      topic: 'agent_operations_tasks',
+      messages: [{ value: expect.any(String) }]
+    });
   });
 
   test('POST /coordinator/step-complete (classification callback) creates incident and triggers planner', async () => {
@@ -215,7 +239,10 @@ describe('Coordinator Express App', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('processed');
     expect(res.body.activated_steps).toContain(step2Id);
-    expect(mockPublish).toHaveBeenCalledWith('agent:compliance:tasks', expect.any(String));
+    expect(mockSend).toHaveBeenCalledWith({
+      topic: 'agent_compliance_tasks',
+      messages: [{ value: expect.any(String) }]
+    });
   });
 
   test('POST /coordinator/step-failed marks step as failed', async () => {
