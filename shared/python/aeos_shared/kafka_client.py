@@ -12,11 +12,20 @@ class KafkaPubSub:
         self.bootstrap_servers = kafka_url
         self.producer = None
 
-    async def connect_producer(self):
+    async def connect_producer(self, retries=5, delay=2.0):
         if not self.producer:
-            self.producer = AIOKafkaProducer(bootstrap_servers=self.bootstrap_servers)
-            await self.producer.start()
-            logger.info("AIOKafkaProducer started.")
+            for attempt in range(retries):
+                try:
+                    self.producer = AIOKafkaProducer(bootstrap_servers=self.bootstrap_servers)
+                    await self.producer.start()
+                    logger.info("AIOKafkaProducer started.")
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to connect AIOKafkaProducer (attempt {attempt+1}/{retries}): {e}")
+                    if attempt < retries - 1:
+                        await asyncio.sleep(delay)
+                    else:
+                        raise e
 
     async def disconnect_producer(self):
         if self.producer:
@@ -31,19 +40,29 @@ class KafkaPubSub:
         await self.producer.send_and_wait(topic, value)
         logger.debug(f"Published message to Kafka topic: {topic}")
 
-    async def subscribe(self, topic: str, group_id: str, callback):
+    async def subscribe(self, topic: str, group_id: str, callback, retries=10, delay=3.0):
         """
         Subscribes to a topic and yields messages.
         Note: The callback should be an async function taking a single dictionary argument.
         """
-        consumer = AIOKafkaConsumer(
-            topic,
-            bootstrap_servers=self.bootstrap_servers,
-            group_id=group_id,
-            auto_offset_reset='latest'
-        )
-        await consumer.start()
-        logger.info(f"AIOKafkaConsumer started for topic {topic} (group: {group_id}).")
+        consumer = None
+        for attempt in range(retries):
+            try:
+                consumer = AIOKafkaConsumer(
+                    topic,
+                    bootstrap_servers=self.bootstrap_servers,
+                    group_id=group_id,
+                    auto_offset_reset='latest'
+                )
+                await consumer.start()
+                logger.info(f"AIOKafkaConsumer started for topic {topic} (group: {group_id}).")
+                break
+            except Exception as e:
+                logger.warning(f"Failed to start AIOKafkaConsumer (attempt {attempt+1}/{retries}): {e}")
+                if attempt < retries - 1:
+                    await asyncio.sleep(delay)
+                else:
+                    raise e
         
         try:
             async for msg in consumer:
