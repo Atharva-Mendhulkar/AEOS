@@ -1,0 +1,83 @@
+static_resources:
+  listeners:
+  - name: mesh_listener
+    address:
+      socket_address:
+        address: 0.0.0.0
+        port_value: 10000
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: ingress_http
+          codec_type: AUTO
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: backend_services
+              domains:
+              - "*"
+              routes:
+              - match:
+                  prefix: "/coordinator/"
+                route:
+                  cluster: coordinator_cluster
+                  prefix_rewrite: "/"
+              - match:
+                  prefix: "/memory/"
+                route:
+                  cluster: memory_agent_cluster
+                  prefix_rewrite: "/"
+              - match:
+                  prefix: "/observability/"
+                route:
+                  cluster: observability_cluster
+                  prefix_rewrite: "/"
+          http_filters:
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+  - name: coordinator_cluster
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: coordinator_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: coordinator
+                port_value: 8001
+
+  - name: memory_agent_cluster
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: memory_agent_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: memory-agent
+                port_value: 8017
+
+  - name: observability_cluster
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: observability_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: observability-service
+                port_value: 8040

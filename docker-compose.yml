@@ -5,22 +5,36 @@ volumes:
   postgres-data: null
   redis-data: null
 services:
-  nginx:
-    build:
-      context: ./infra/nginx
-      dockerfile: Dockerfile
+  kong:
+    image: kong:3.6.1-ubuntu
+    environment:
+      - KONG_DATABASE=off
+      - KONG_DECLARATIVE_CONFIG=/usr/local/kong/declarative/kong.yml
+      - KONG_PROXY_ACCESS_LOG=/dev/stdout
+      - KONG_ADMIN_ACCESS_LOG=/dev/stdout
+      - KONG_PROXY_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_ERROR_LOG=/dev/stderr
+      - KONG_ADMIN_LISTEN=0.0.0.0:8001, 0.0.0.0:8444 ssl
     ports:
-    - 80:80
-    - 443:443
+      - 80:8000
+      - 443:8443
     volumes:
-    - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-    - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./infra/kong/kong.yml:/usr/local/kong/declarative/kong.yml:ro
     depends_on:
-    - frontend
-    - api-gateway
-    - observability-service
+      - frontend
+      - api-gateway
+      - observability-service
     networks:
-    - aeos-network
+      - aeos-network
+    restart: unless-stopped
+  envoy:
+    image: envoyproxy/envoy:v1.30-latest
+    ports:
+      - 10000:10000
+    volumes:
+      - ./infra/envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    networks:
+      - aeos-network
     restart: unless-stopped
   postgres:
     image: pgvector/pgvector:pg16
