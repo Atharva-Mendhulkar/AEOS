@@ -225,9 +225,9 @@ async def execute_plan_generation_flow(req: GeneratePlanRequest):
             continue
 
         # 3. Governance plan validation check
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                gov_response = await client.post(
+                gov_response = await post(
                     f"{GOVERNANCE_URL}/governance/validate-plan",
                     json={"steps": steps, "metadata": {}}
                 )
@@ -242,9 +242,9 @@ async def execute_plan_generation_flow(req: GeneratePlanRequest):
                 logger.warn(f"Failed to communicate with Governance Layer: {e}. Assuming valid for development.")
 
         # 4. If approved: persist plan to Memory Agent
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                await client.post(
+                await post(
                     f"{MEMORY_AGENT_URL}/memory/plans",
                     json={"workflow_id": workflow_id, "plan": {"steps": steps}}
                 )
@@ -253,9 +253,9 @@ async def execute_plan_generation_flow(req: GeneratePlanRequest):
                 logger.warn(f"Failed to persist plan to Memory Agent: {e}")
 
         # 5. Forward approved plan to Coordinator
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                await client.post(
+                await post(
                     f"{COORDINATOR_URL}/coordinator/plan-ready",
                     json={"workflow_id": workflow_id, "steps": steps}
                 )
@@ -268,9 +268,9 @@ async def execute_plan_generation_flow(req: GeneratePlanRequest):
 
     # 6. Retry limit exceeded: Escalate to Escalation Agent
     logger.error(f"Plan generation failed after {retry_count} attempts. Escalating...")
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            await client.post(
+            await post(
                 f"{ESCALATION_AGENT_URL}/escalation/notify",
                 json={
                     "incident_id": incident_id,
@@ -313,9 +313,9 @@ async def replan_endpoint(req: ReplanRequest):
     }]
     
     # Forward to Coordinator plan-ready
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            await client.post(
+            await post(
                 f"{COORDINATOR_URL}/coordinator/plan-ready",
                 json={"workflow_id": req.workflow_id, "steps": recovery_steps}
             )

@@ -11,6 +11,11 @@ import redis.asyncio as aioredis
 import google.generativeai as genai
 
 from aeos_shared import (
+    get,
+    post,
+    put,
+    delete,
+
     AgentTask,
     AgentResult,
     AgentCapabilities,
@@ -154,10 +159,10 @@ async def report_result(task: AgentTask, success: bool, output: dict = None, err
         "requires_escalation": requires_escalation
     }
     
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
             logger.info(f"Reporting task result to Coordinator: {endpoint}")
-            await client.post(endpoint, json=payload)
+            await post(endpoint, json=payload)
         except Exception as e:
             logger.error(f"Failed to report result to Coordinator: {e}")
 

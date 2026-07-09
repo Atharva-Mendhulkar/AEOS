@@ -1,3 +1,4 @@
+from aeos_shared import get, post, put, delete
 import os
 import json
 import time
@@ -132,9 +133,9 @@ async def emit_anomaly_event(agent_type: str, action: Dict[str, Any], anomaly_in
         }
     }
     
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            await client.post(
+            await post(
                 f"{OBSERVABILITY_URL}/observability/events",
                 json=event_payload
             )

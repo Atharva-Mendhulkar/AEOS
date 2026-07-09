@@ -238,6 +238,17 @@ Every autonomous action is observable, attributable, and replayable.
 
 ---
 
+## **Enterprise Reliability (Cisco Standard)**
+
+AEOS is hardened for enterprise production deployments with foundational resilience mechanisms:
+
+- **Centralized HTTP Client:** A unified `asyncio` client with dynamic Circuit Breakers preventing cascading ThreadPool exhaustion.
+- **Retry Budgets & Exponential Backoff:** Native handling of transient network blips across all 13 microservices.
+- **Edge Idempotency Keys:** Redis-backed idempotency caching at the API Gateway to safely handle client retries without duplicating workflows.
+- **Database Read Replicas:** Separated connection pools for high-throughput reads (e.g., policy queries) vs. mutations via `asyncpg`.
+
+---
+
 # **System Architecture**
 
 ```mermaid

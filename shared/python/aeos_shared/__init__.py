@@ -74,6 +74,7 @@ from aeos_shared.models.escalation import (
 )
 from aeos_shared.db import (
     get_db,
+    get_db_read,
     init_db_pool,
     close_db_pool,
 )
@@ -84,6 +85,14 @@ from aeos_shared.security import (
     sanitize_model_text_fields,
     sanitize_text,
     validate_policy_config,
+)
+from aeos_shared.http_client import (
+    request_with_retry,
+    get,
+    post,
+    put,
+    delete,
+    CircuitBreakerOpenException,
 )
 
 __all__ = [
@@ -148,6 +157,7 @@ __all__ = [
     "PendingEscalation",
     # db
     "get_db",
+    "get_db_read",
     "init_db_pool",
     "close_db_pool",
     # security
@@ -157,4 +167,11 @@ __all__ = [
     "sanitize_model_text_fields",
     "sanitize_text",
     "validate_policy_config",
+    # http_client
+    "request_with_retry",
+    "get",
+    "post",
+    "put",
+    "delete",
+    "CircuitBreakerOpenException",
 ]

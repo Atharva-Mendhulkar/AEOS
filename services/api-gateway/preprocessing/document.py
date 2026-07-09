@@ -61,7 +61,7 @@ async def extract_text(input_id: UUID, file_path: str, format_type: str):
     logger.info(f"Database updated for document/image input {input_id}")
 
     # Emit event to Observability
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
             event_payload = {
                 "event_type": "preprocessing.completed",
@@ -74,12 +74,12 @@ async def extract_text(input_id: UUID, file_path: str, format_type: str):
                 "outputs": {"extracted_text_length": len(extracted_text)},
                 "prev_entry_hash": "genesis"
             }
-            await client.post(f"{OBSERVABILITY_URL}/observability/events", json=event_payload)
+            await post(f"{OBSERVABILITY_URL}/observability/events", json=event_payload)
         except Exception as e:
             logger.warning(f"Failed to emit preprocessing.completed event: {e}")
 
     # Forward reference to the Coordinator
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
             coordinator_payload = {
                 "input_id": str(input_id),
@@ -87,6 +87,6 @@ async def extract_text(input_id: UUID, file_path: str, format_type: str):
                 "extracted_text": extracted_text
             }
             logger.info(f"Forwarding document input {input_id} to Coordinator")
-            await client.post(f"{COORDINATOR_URL}/coordinator/route-input", json=coordinator_payload)
+            await post(f"{COORDINATOR_URL}/coordinator/route-input", json=coordinator_payload)
         except Exception as e:
             logger.error(f"Failed to forward input {input_id} to Coordinator: {e}")

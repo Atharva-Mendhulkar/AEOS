@@ -29,11 +29,11 @@ async def transcribe_audio(input_id: UUID, file_path: str):
             # Call actual Speechmatics API (v2 jobs endpoint)
             # 1. Submit job
             headers = {"Authorization": f"Bearer {api_key}"}
-            async with httpx.AsyncClient() as client:
+            if True:
                 with open(file_path, "rb") as f:
                     files = {"data_file": f}
                     data = {"config": '{"type": "transcription", "transcription_config": {"language": "en"}}'}
-                    response = await client.post(f"{api_url}/v2/jobs", headers=headers, files=files, data=data)
+                    response = await post(f"{api_url}/v2/jobs", headers=headers, files=files, data=data)
                 
                 if response.status_code != 201:
                     raise RuntimeError(f"Speechmatics job submission failed: {response.text}")
@@ -44,12 +44,12 @@ async def transcribe_audio(input_id: UUID, file_path: str):
                 # 2. Poll for completion
                 for _ in range(60): # Poll up to 60 times (60 seconds)
                     await asyncio.sleep(1)
-                    job_response = await client.get(f"{api_url}/v2/jobs/{job_id}", headers=headers)
+                    job_response = await get(f"{api_url}/v2/jobs/{job_id}", headers=headers)
                     if job_response.status_code == 200:
                         job_status = job_response.json()["job"]["status"]
                         if job_status == "done":
                             # 3. Retrieve transcript
-                            transcript_response = await client.get(f"{api_url}/v2/jobs/{job_id}/transcript?format=txt", headers=headers)
+                            transcript_response = await get(f"{api_url}/v2/jobs/{job_id}/transcript?format=txt", headers=headers)
                             if transcript_response.status_code == 200:
                                 transcript = transcript_response.text
                                 break
@@ -80,7 +80,7 @@ async def transcribe_audio(input_id: UUID, file_path: str):
     logger.info(f"Database updated for audio input {input_id}")
 
     # Emit preprocessing.completed event to Observability
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
             event_payload = {
                 "event_type": "preprocessing.completed",
@@ -93,12 +93,12 @@ async def transcribe_audio(input_id: UUID, file_path: str):
                 "outputs": {"transcript_length": len(transcript)},
                 "prev_entry_hash": "genesis"
             }
-            await client.post(f"{OBSERVABILITY_URL}/observability/events", json=event_payload)
+            await post(f"{OBSERVABILITY_URL}/observability/events", json=event_payload)
         except Exception as e:
             logger.warning(f"Failed to emit preprocessing.completed event: {e}")
 
     # Forward reference to the Coordinator
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
             coordinator_payload = {
                 "input_id": str(input_id),
@@ -106,6 +106,6 @@ async def transcribe_audio(input_id: UUID, file_path: str):
                 "transcript": transcript
             }
             logger.info(f"Forwarding audio input {input_id} to Coordinator")
-            await client.post(f"{COORDINATOR_URL}/coordinator/route-input", json=coordinator_payload)
+            await post(f"{COORDINATOR_URL}/coordinator/route-input", json=coordinator_payload)
         except Exception as e:
             logger.error(f"Failed to forward input {input_id} to Coordinator: {e}")

@@ -139,9 +139,9 @@ async def record_audit_entry(agent: str, event_type: str, desc: str, inputs: dic
         "outputs": sanitize_json(outputs),
         "risk_score": risk
     }
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            await client.post(f"{MEMORY_AGENT_URL}/memory/audit", json=audit_payload)
+            await post(f"{MEMORY_AGENT_URL}/memory/audit", json=audit_payload)
         except Exception as e:
             logger.error(f"Failed to write to Audit Trail: {e}")
 
@@ -155,9 +155,9 @@ async def emit_circuit_breaker_activated(agent: str, incident_id: Optional[str],
         "incident_id": incident_id,
         "workflow_id": workflow_id
     }
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            await client.post(f"{OBSERVABILITY_URL}/observability/events", json=event_payload)
+            await post(f"{OBSERVABILITY_URL}/observability/events", json=event_payload)
         except Exception as e:
             logger.error(f"Failed to emit circuit breaker event: {e}")
 
@@ -167,8 +167,8 @@ async def emit_circuit_breaker_activated(agent: str, incident_id: Optional[str],
 
 async def emit_governance_state(status: str, incident_id: Optional[str] = None, workflow_id: Optional[str] = None):
     try:
-        async with httpx.AsyncClient() as client:
-            await client.post(
+        if True:
+            await post(
                 f"{OBSERVABILITY_URL}/observability/events",
                 json={
                     "type": "agent.state_changed",

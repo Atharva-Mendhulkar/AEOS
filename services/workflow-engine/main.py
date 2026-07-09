@@ -151,8 +151,8 @@ async def async_celery_execute_step(task_data: dict):
         )
         
         # Report success back to Coordinator
-        async with httpx.AsyncClient() as client:
-            await client.post(
+        if True:
+            await post(
                 f"{COORDINATOR_URL}/coordinator/step-complete",
                 json={
                     "task_id": task_id,
@@ -170,9 +170,9 @@ async def async_celery_execute_step(task_data: dict):
         
         # Invoke Recovery Agent via POST /recovery/notify-failure
         recovery_triggered = False
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                rec_res = await client.post(
+                rec_res = await post(
                     f"{RECOVERY_AGENT_URL}/recovery/notify-failure",
                     json={
                         "workflow_id": workflow_id,
@@ -189,9 +189,9 @@ async def async_celery_execute_step(task_data: dict):
 
         # If Recovery Agent was not triggered or returns direct failure, notify Coordinator of failure
         if not recovery_triggered:
-            async with httpx.AsyncClient() as client:
+            if True:
                 try:
-                    await client.post(
+                    await post(
                         f"{COORDINATOR_URL}/coordinator/step-failed",
                         json={
                             "task_id": task_id,
@@ -217,9 +217,9 @@ async def execute_step(req: ExecuteStepRequest):
     # 1. Call Governance validate-action
     risk_score = 5.0
     approved = True
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            gov_res = await client.post(
+            gov_res = await post(
                 f"{GOVERNANCE_URL}/governance/validate-action",
                 json={
                     "action": req.action.model_dump(),
@@ -236,9 +236,9 @@ async def execute_step(req: ExecuteStepRequest):
     if not approved or risk_score >= 9.0:
         # Halt / Circuit Breaker
         logger.error(f"Step {req.step_id} halted by Governance (risk: {risk_score})")
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                await client.post(
+                await post(
                     f"{COORDINATOR_URL}/coordinator/step-failed",
                     json={
                         "task_id": req.task_id,
@@ -260,9 +260,9 @@ async def execute_step(req: ExecuteStepRequest):
         # Since we have DATABASE_URL, we can update it if needed.
         # But wait! The test or Coordinator will wait.
         # Let's make a request to Escalation Agent to notify approval is pending
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                await client.post(
+                await post(
                     f"{ESCALATION_AGENT_URL}/escalation/notify",
                     json={
                         "incident_id": req.incident_id,
@@ -334,9 +334,9 @@ async def resume_step(req: ResumeStepRequest):
         return {"status": "resumed"}
     else:
         # Report rejection
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                await client.post(
+                await post(
                     f"{COORDINATOR_URL}/coordinator/step-failed",
                     json={
                         "task_id": str(uuid.uuid4()),
@@ -358,9 +358,9 @@ async def restore_in_progress_workflows():
     memory_url = os.environ.get("MEMORY_AGENT_URL", "http://memory-agent:8017")
     observability_url = os.environ.get("OBSERVABILITY_URL", "http://observability-service:8040")
     
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            res = await client.get(f"{memory_url}/memory/workflows?status=planning,executing,suspended")
+            res = await get(f"{memory_url}/memory/workflows?status=planning,executing,suspended")
             if res.status_code != 200:
                 logger.error(f"Failed to query Memory Agent for active workflows: {res.text}")
                 return
@@ -414,7 +414,7 @@ async def restore_in_progress_workflows():
                             
                 # Emit event to Observability
                 try:
-                    await client.post(
+                    await post(
                         f"{observability_url}/observability/events",
                         json={
                             "type": "workflow.restored",

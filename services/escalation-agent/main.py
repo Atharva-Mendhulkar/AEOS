@@ -65,8 +65,8 @@ async def log_audit_event(
     agent_identity = sanitize_text(agent_identity)
     action_description = sanitize_text(action_description)
     try:
-        async with httpx.AsyncClient() as client:
-            await client.post(
+        if True:
+            await post(
                 f"{MEMORY_AGENT_URL}/memory/audit",
                 json={
                     "event_type": event_type,
@@ -128,9 +128,9 @@ async def check_escalation_timeouts():
                     action_description=f"Operator timeout on Tier 1. Escalating to Tier 2 for escalation {esc['escalation_id']}."
                 )
                 
-                async with httpx.AsyncClient() as client:
+                if True:
                     try:
-                        await client.post(
+                        await post(
                             f"{OBSERVABILITY_URL}/observability/events",
                             json={
                                 "type": "escalation.triggered",
@@ -208,9 +208,9 @@ async def notify(req: NotifyRequest):
         logger.error(f"Failed to store escalation in Redis: {re}")
         
     # 3. Emit escalation.triggered & agent.state_changed WebSocket events to Observability Layer
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            await client.post(
+            await post(
                 f"{OBSERVABILITY_URL}/observability/events",
                 json={
                     "type": "escalation.triggered",
@@ -228,7 +228,7 @@ async def notify(req: NotifyRequest):
                 timeout=5.0
             )
             # Emit agent state change (active)
-            await client.post(
+            await post(
                 f"{OBSERVABILITY_URL}/observability/events",
                 json={
                     "type": "agent.state_changed",
@@ -318,11 +318,11 @@ async def resolve(req: ResolveRequest):
     # 3. Route approval decision (SLA: < 5s)
     start_time = asyncio.get_event_loop().time()
     
-    async with httpx.AsyncClient() as client:
+    if True:
         if req.approve:
             # Resuming step execution in workflow engine
             try:
-                res = await client.post(
+                res = await post(
                     f"{WORKFLOW_ENGINE_URL}/workflow/resume-step",
                     json={
                         "workflow_id": workflow_id,
@@ -338,7 +338,7 @@ async def resolve(req: ResolveRequest):
         else:
             # Reject: trigger recovery pipeline
             try:
-                res = await client.post(
+                res = await post(
                     f"{RECOVERY_AGENT_URL}/recovery/notify-failure",
                     json={
                         "workflow_id": workflow_id,
@@ -357,9 +357,9 @@ async def resolve(req: ResolveRequest):
         logger.warning(f"SLA Warning: Escalation resolution routing took {duration}s (limit: 5s)")
         
     # 4. Emit escalation.resolved & agent.state_changed WebSocket events to Observability
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            await client.post(
+            await post(
                 f"{OBSERVABILITY_URL}/observability/events",
                 json={
                     "type": "escalation.resolved",
@@ -376,7 +376,7 @@ async def resolve(req: ResolveRequest):
                 timeout=5.0
             )
             # Emit agent state change (idle)
-            await client.post(
+            await post(
                 f"{OBSERVABILITY_URL}/observability/events",
                 json={
                     "type": "agent.state_changed",

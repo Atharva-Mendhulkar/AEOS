@@ -65,8 +65,8 @@ async def process_task(task_data: dict):
         # Mock validation actions
         output = {"status": "success", "validation_passed": True}
             
-        async with httpx.AsyncClient() as client:
-            await client.post(
+        if True:
+            await post(
                 f"{COORDINATOR_URL}/coordinator/step-complete",
                 json={
                     "task_id": task_id,
@@ -80,9 +80,9 @@ async def process_task(task_data: dict):
             logger.info(f"Successfully posted step-complete callback for {step_id}")
     except Exception as e:
         logger.error(f"Failed to execute task {task_id}: {e}")
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                await client.post(
+                await post(
                     f"{COORDINATOR_URL}/coordinator/step-failed",
                     json={
                         "task_id": task_id,

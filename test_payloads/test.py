@@ -1,3 +1,4 @@
+from aeos_shared import get, post, put, delete
 import httpx
 import asyncio
 import os
@@ -27,13 +28,13 @@ async def ingest_payload(name, format_type, content, filename):
     
     print(f"\n🚀 Ingesting Test Case: {name} (Format: {format_type})")
     
-    async with httpx.AsyncClient(headers=headers) as client:
+    if True:
         payload = {"format": format_type, "metadata": json.dumps({"source": "orchestration-test-suite"})}
         mime = "text/plain"
         files = {"file": (filename, content.encode('utf-8') if isinstance(content, str) else content, mime)}
         
         try:
-            response = await client.post(f"{api_base}/incidents/ingest", data=payload, files=files)
+            response = await post(f"{api_base}/incidents/ingest", data=payload, files=files)
             if response.status_code == 200:
                 data = response.json()
                 print(f"✅ Successfully ingested! Incident ID: {data['incident_id']}")

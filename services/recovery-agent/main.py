@@ -79,8 +79,8 @@ async def log_audit_event(
     agent_identity = sanitize_text(agent_identity)
     action_description = sanitize_text(action_description)
     try:
-        async with httpx.AsyncClient() as client:
-            await client.post(
+        if True:
+            await post(
                 f"{MEMORY_AGENT_URL}/memory/audit",
                 json={
                     "event_type": event_type,
@@ -103,8 +103,8 @@ async def log_audit_event(
 async def run_recovery_background(workflow_id: str, step_id: str, incident_id: str, error: str, classification: str):
     # Emit active state for recovery agent
     try:
-        async with httpx.AsyncClient() as client:
-            await client.post(
+        if True:
+            await post(
                 f"http://observability-service:8040/observability/events",
                 json={
                     "type": "agent.state_changed",
@@ -167,7 +167,7 @@ async def run_recovery_background(workflow_id: str, step_id: str, incident_id: s
                     await asyncio.sleep(delay)
                     
                     # Trigger step execute call to Workflow Engine
-                    async with httpx.AsyncClient() as client:
+                    if True:
                         exec_payload = {
                             "task_id": str(uuid.uuid4()),
                             "workflow_id": workflow_id,
@@ -179,7 +179,7 @@ async def run_recovery_background(workflow_id: str, step_id: str, incident_id: s
                         }
                         try:
                             # Setting a reasonable timeout
-                            await client.post(
+                            await post(
                                 f"{WORKFLOW_ENGINE_URL}/workflow/execute-step", 
                                 json=exec_payload,
                                 timeout=10.0
@@ -211,9 +211,9 @@ async def run_recovery_background(workflow_id: str, step_id: str, incident_id: s
         
         # Call planner-agent /planner/replan
         replan_success = False
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                res = await client.post(
+                res = await post(
                     f"{PLANNER_URL}/planner/replan",
                     json={
                         "workflow_id": workflow_id,
@@ -244,9 +244,9 @@ async def run_recovery_background(workflow_id: str, step_id: str, incident_id: s
             action_description=f"Replanning unsuccessful. Escalating workflow {workflow_id} step {step_id} failure to operator."
         )
         
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
-                await client.post(
+                await post(
                     f"{ESCALATION_URL}/escalation/notify",
                     json={
                         "incident_id": incident_id,
@@ -265,8 +265,8 @@ async def run_recovery_background(workflow_id: str, step_id: str, incident_id: s
     finally:
         # Emit idle state for recovery agent
         try:
-            async with httpx.AsyncClient() as client:
-                await client.post(
+            if True:
+                await post(
                     f"http://observability-service:8040/observability/events",
                     json={
                         "type": "agent.state_changed",

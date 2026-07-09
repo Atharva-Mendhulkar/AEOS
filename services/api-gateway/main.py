@@ -4,7 +4,7 @@ import json
 import logging
 from datetime import datetime, timezone
 import httpx
-from fastapi import FastAPI, Depends, File, UploadFile, Form, HTTPException, BackgroundTasks, status, Request
+from fastapi import FastAPI, Depends, File, UploadFile, Form, HTTPException, BackgroundTasks, status, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi import Response
@@ -13,6 +13,11 @@ import asyncpg
 import redis.asyncio as redis
 
 from aeos_shared import (
+    get,
+    post,
+    put,
+    delete,
+
     require_auth,
     require_role,
     JWTPayload,
@@ -71,8 +76,8 @@ async def publish_policy_update(policy_name: str):
 
 async def audit_policy_change(event_type: str, payload: JWTPayload, policy_id: str, name: str, config: dict, version: int):
     try:
-        async with httpx.AsyncClient() as client:
-            await client.post(
+        if True:
+            await post(
                 f"{MEMORY_AGENT_URL}/memory/audit",
                 json={
                     "event_type": event_type,
@@ -148,8 +153,16 @@ async def ingest_incident(
     file: Optional[UploadFile] = File(None),
     raw_content: Optional[str] = Form(None),
     payload: JWTPayload = Depends(require_auth),
-    db: asyncpg.Connection = Depends(get_db)
+    db: asyncpg.Connection = Depends(get_db),
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key")
 ):
+    r_client = redis.from_url(REDIS_URL, decode_responses=True)
+    if idempotency_key:
+        cached = await r_client.get(f"idempotency:ingest:{idempotency_key}")
+        if cached:
+            await r_client.close()
+            return json.loads(cached)
+
     input_id = uuid.uuid4()
     created_at = datetime.now(timezone.utc)
     format = sanitize_text(format)
@@ -160,7 +173,7 @@ async def ingest_incident(
     supported_formats = ["text", "json", "pdf", "image", "log", "audio", "transcript"]
     if format not in supported_formats:
         # Log format rejection to Audit Trail via Memory Agent
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
                 audit_entry = {
                     "event_type": "format.rejected",
@@ -171,7 +184,7 @@ async def ingest_incident(
                     "outputs": {"error": "Unsupported format"},
                     "prev_entry_hash": "genesis"
                 }
-                await client.post(f"{MEMORY_AGENT_URL}/memory/audit", json=audit_entry)
+                await post(f"{MEMORY_AGENT_URL}/memory/audit", json=audit_entry)
             except Exception as e:
                 logger.warning(f"Failed to log format rejection: {e}")
         
@@ -230,7 +243,7 @@ async def ingest_incident(
             background_tasks.add_task(extract_text, input_id, file_path, format)
     else:
         # Directly forward to Coordinator
-        async with httpx.AsyncClient() as client:
+        if True:
             try:
                 coordinator_payload = {
                     "input_id": str(input_id),
@@ -238,11 +251,15 @@ async def ingest_incident(
                     "raw_content": raw_content
                 }
                 logger.info(f"Directly forwarding input {input_id} to Coordinator")
-                await client.post(f"{COORDINATOR_URL}/coordinator/route-input", json=coordinator_payload)
+                await post(f"{COORDINATOR_URL}/coordinator/route-input", json=coordinator_payload)
             except Exception as e:
                 logger.error(f"Failed to forward input {input_id} to Coordinator: {e}")
 
-    return {"incident_id": str(input_id), "status": initial_status}
+    response_data = {"incident_id": str(input_id), "status": initial_status}
+    if idempotency_key:
+        await r_client.setex(f"idempotency:ingest:{idempotency_key}", 86400, json.dumps(response_data))
+    await r_client.close()
+    return response_data
 
 # ---------------------------------------------------------------------------
 # Incidents endpoints
@@ -366,7 +383,7 @@ async def cancel_workflow(
     await db.execute("UPDATE workflows SET status = 'failed', updated_at = NOW() WHERE id = $1", id)
     
     # Audit cancellation
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
             audit_entry = {
                 "event_type": "step.failed",
@@ -378,7 +395,7 @@ async def cancel_workflow(
                 "outputs": {"status": "failed"},
                 "prev_entry_hash": "genesis"
             }
-            await client.post(f"{MEMORY_AGENT_URL}/memory/audit", json=audit_entry)
+            await post(f"{MEMORY_AGENT_URL}/memory/audit", json=audit_entry)
         except Exception as e:
             logger.warning(f"Failed to audit workflow cancellation: {e}")
 
@@ -433,14 +450,14 @@ async def respond_escalation(
     db: asyncpg.Connection = Depends(get_db)
 ):
     # Forward respond call to Escalation Agent
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
             escalation_payload = {
                 "decision": decision,
                 "notes": notes,
                 "operator": payload.sub
             }
-            response = await client.post(
+            response = await post(
                 f"http://escalation-agent:8016/escalations/{id}/respond",
                 json=escalation_payload
             )
@@ -605,13 +622,13 @@ async def trigger_chain_validation(
     to_id: Optional[int] = None,
     payload: JWTPayload = Depends(require_auth)
 ):
-    async with httpx.AsyncClient() as client:
+    if True:
         params = {}
         if from_id: params["from_id"] = from_id
         if to_id: params["to_id"] = to_id
         
         try:
-            resp = await client.get(f"{OBSERVABILITY_URL}/observability/audit/validate-chain", params=params, timeout=10.0)
+            resp = await get(f"{OBSERVABILITY_URL}/observability/audit/validate-chain", params=params, timeout=10.0)
             if resp.status_code == 200:
                 return resp.json()
             else:
@@ -623,9 +640,9 @@ async def trigger_chain_validation(
 async def get_observability_agents(
     payload: JWTPayload = Depends(require_auth)
 ):
-    async with httpx.AsyncClient() as client:
+    if True:
         try:
-            resp = await client.get(f"{OBSERVABILITY_URL}/observability/agents", timeout=5.0)
+            resp = await get(f"{OBSERVABILITY_URL}/observability/agents", timeout=5.0)
             if resp.status_code == 200:
                 return resp.json()
             else:

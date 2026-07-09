@@ -157,8 +157,8 @@ async def ingest_event(event: dict):
     # 1. Persist to audit trail via Memory Agent
     if event_type != "agent.state_changed":
         try:
-            async with httpx.AsyncClient() as client:
-                audit_resp = await client.post(
+            if True:
+                audit_resp = await post(
                     f"{MEMORY_AGENT_URL}/memory/audit",
                     json={
                         "event_type": event_type,
@@ -267,8 +267,8 @@ async def query_observability_audit(
         # filter out None values
         params = {k: v for k, v in params.items() if v is not None}
         
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(f"{MEMORY_AGENT_URL}/memory/audit", params=params, timeout=5.0)
+        if True:
+            resp = await get(f"{MEMORY_AGENT_URL}/memory/audit", params=params, timeout=5.0)
             if resp.status_code != 200:
                 raise HTTPException(status_code=resp.status_code, detail=resp.text)
             data = resp.json()

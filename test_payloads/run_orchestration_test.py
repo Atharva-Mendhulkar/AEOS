@@ -1,3 +1,4 @@
+from aeos_shared import get, post, put, delete
 import httpx
 import asyncio
 import os
@@ -35,14 +36,14 @@ async def main():
     print("\n🚀 Step 1: Ingesting Comprehensive Test Payload (JSON)")
     print("   -> Triggers: Incident Analysis Agent")
     
-    async with httpx.AsyncClient(headers=headers, timeout=30.0) as client:
+    if True:
         payload = {"format": "json", "metadata": json.dumps({"source": "comprehensive_test"})}
         with open(filepath, "rb") as f:
             content = f.read()
             
         files = {"file": (filepath.name, content, "application/json")}
         try:
-            response = await client.post(f"{api_base}/incidents/ingest", data=payload, files=files)
+            response = await post(f"{api_base}/incidents/ingest", data=payload, files=files)
             if response.status_code == 200:
                 data = response.json()
                 incident_id = data['incident_id']
@@ -62,7 +63,7 @@ async def main():
         print("   -> Triggers: Planner Agent, Workflow Engine, Governance Agent, Operations & Compliance Specialists")
         
         # We need to find the workflow ID for this incident
-        workflows_resp = await client.get(f"{api_base}/incidents/{incident_id}")
+        workflows_resp = await get(f"{api_base}/incidents/{incident_id}")
         if workflows_resp.status_code == 200:
             incident_data = workflows_resp.json()
             workflow_id = incident_data.get("workflow_id")
@@ -84,7 +85,7 @@ async def main():
             print("   -> Simulating operator manual rejection to activate Recovery Agent...")
             
             # Fetch the current step to fail it
-            wf_details = await client.get(f"{api_base}/workflows/{workflow_id}")
+            wf_details = await get(f"{api_base}/workflows/{workflow_id}")
             if wf_details.status_code == 200 and wf_details.json().get("plan"):
                 steps = wf_details.json()["plan"].get("steps", [])
                 if steps:
@@ -98,7 +99,7 @@ async def main():
                             "error": "Operator rejection simulation: Data sensitivity too high for automated execution."
                         }
                         # We hit internal recovery agent port or coordinator step-failed
-                        await httpx.AsyncClient().post(
+                        await post(
                             "http://localhost:8015/recovery/notify-failure",
                             json=recovery_payload,
                             timeout=5.0

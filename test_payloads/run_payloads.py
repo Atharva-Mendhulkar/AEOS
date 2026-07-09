@@ -1,3 +1,4 @@
+from aeos_shared import get, post, put, delete
 import httpx
 import asyncio
 import os
@@ -46,7 +47,7 @@ async def ingest_payload(filepath):
         
     print(f"\n🚀 Ingesting Test Case: {path.name} (Format: {format_type})")
     
-    async with httpx.AsyncClient(headers=headers, timeout=30.0) as client:
+    if True:
         payload = {"format": format_type, "metadata": json.dumps({"source": "test_payloads", "filename": path.name})}
         
         try:
@@ -54,7 +55,7 @@ async def ingest_payload(filepath):
                 content = f.read()
                 
             files = {"file": (path.name, content, mime)}
-            response = await client.post(f"{api_base}/incidents/ingest", data=payload, files=files)
+            response = await post(f"{api_base}/incidents/ingest", data=payload, files=files)
             
             if response.status_code == 200:
                 data = response.json()
