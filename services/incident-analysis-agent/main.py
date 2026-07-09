@@ -1,3 +1,4 @@
+from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
 import uuid
@@ -34,6 +35,10 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://:aeosredis@redis:6379/0")
 CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.7"))
 
 app = FastAPI(title="Incident Analysis Agent", version="1.0.0")
+
+# Expose Prometheus metrics
+Instrumentator().instrument(app).expose(app)
+
 add_security_middleware(app)
 redis_conn = None
 subscriber_task = None

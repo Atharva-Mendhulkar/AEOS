@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'aeos-services'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+        - 'api-gateway:8000'
+        - 'coordinator:8001'
+        - 'planner-agent:8010'
+        - 'incident-analysis-agent:8011'
+        - 'operations-agent:8012'
+        - 'compliance-agent:8013'
+        - 'validation-agent:8014'
+        - 'recovery-agent:8015'
+        - 'escalation-agent:8016'
+        - 'memory-agent:8017'
+        - 'governance-service:8020'
+        - 'workflow-engine:8030'
+        - 'observability-service:8040'

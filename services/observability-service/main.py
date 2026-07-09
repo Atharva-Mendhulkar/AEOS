@@ -1,3 +1,4 @@
+from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
 import sys
@@ -62,6 +63,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("observability-service")
 
 app = FastAPI(title="Observability Service", version="1.0.0")
+
+# Expose Prometheus metrics
+Instrumentator().instrument(app).expose(app)
+
 add_security_middleware(app)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")

@@ -1,3 +1,4 @@
+from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
 import json
@@ -18,6 +19,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("escalation-agent")
 
 app = FastAPI(title="Escalation Agent", version="1.0.0")
+
+# Expose Prometheus metrics
+Instrumentator().instrument(app).expose(app)
+
 add_security_middleware(app)
 
 # Service URLs from Environment

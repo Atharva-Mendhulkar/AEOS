@@ -1,3 +1,4 @@
+from prometheus_fastapi_instrumentator import Instrumentator
 import os
 import json
 import uuid
@@ -18,6 +19,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("memory-agent")
 
 app = FastAPI(title="Memory Agent", version="1.0.0")
+
+# Expose Prometheus metrics
+Instrumentator().instrument(app).expose(app)
+
 add_security_middleware(app)
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/aeos")

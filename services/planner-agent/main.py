@@ -1,3 +1,4 @@
+from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
 import uuid
@@ -14,6 +15,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("planner-agent")
 
 app = FastAPI(title="Planner Agent", version="1.0.0")
+
+# Expose Prometheus metrics
+Instrumentator().instrument(app).expose(app)
+
 add_security_middleware(app)
 
 # URLs and environment configurations

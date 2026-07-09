@@ -1,3 +1,4 @@
+from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
 import uuid
@@ -47,6 +48,10 @@ UPLOAD_DIR = "/tmp/aeos_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 app = FastAPI(title="AEOS API Gateway", version="1.0.0")
+
+# Expose Prometheus metrics
+Instrumentator().instrument(app).expose(app)
+
 
 app.add_middleware(
     CORSMiddleware,

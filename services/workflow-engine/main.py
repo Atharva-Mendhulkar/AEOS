@@ -1,3 +1,4 @@
+from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
 import time
@@ -16,6 +17,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workflow-engine")
 
 app = FastAPI(title="Workflow Engine", version="1.0.0")
+
+# Expose Prometheus metrics
+Instrumentator().instrument(app).expose(app)
+
 add_security_middleware(app)
 
 # URLs and environment configurations

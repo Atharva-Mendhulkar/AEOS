@@ -3,7 +3,11 @@ import logging
 import time
 from typing import Optional, Dict, Any, Callable
 import httpx
-
+try:
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+    HTTPXClientInstrumentor().instrument()
+except ImportError:
+    pass
 logger = logging.getLogger(__name__)
 
 class CircuitBreakerOpenException(Exception):
