@@ -199,20 +199,18 @@ async def async_celery_execute_step(task_data: dict):
 
     lock_key = f"lock:step:{step_id}"
     try:
-        async with RedisDistributedLock(REDIS_URL, lock_key):
-            try:
+        try:
+            async with RedisDistributedLock(REDIS_URL, lock_key):
                 # Execute tool
                 output = await asyncio.wait_for(
                     execute_tool_logic(tool, params, timeout),
                     timeout=float(timeout)
                 )
-            except Exception as execution_error:
-                raise execution_error
-    except Exception as e:
-        if "Failed to acquire lock" in str(e):
-            logger.info(f"Step {step_id} is already being executed (locked). Skipping duplicate.")
-            return {"status": "skipped", "reason": "lock_acquired_by_other_worker"}
-        raise e
+        except Exception as lock_e:
+            if "Failed to acquire lock" in str(lock_e):
+                logger.info(f"Step {step_id} is already being executed (locked). Skipping duplicate.")
+                return {"status": "skipped", "reason": "lock_acquired_by_other_worker"}
+            raise lock_e
         
         # Report success back to Coordinator
         if True:
