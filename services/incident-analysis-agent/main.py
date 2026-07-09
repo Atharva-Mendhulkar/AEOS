@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 import httpx
 from fastapi import FastAPI, HTTPException, status
 import asyncpg
-import redis.asyncio as aioredis
+from aeos_shared.kafka_client import KafkaPubSub
 import google.generativeai as genai
 
 from aeos_shared import (
@@ -32,7 +32,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("incident-analysis-agent")
 
 COORDINATOR_URL = os.environ.get("COORDINATOR_URL", "http://coordinator:8001")
-REDIS_URL = os.environ.get("REDIS_URL", "redis://:aeosredis@redis:6379/0")
+KAFKA_URL = os.environ.get("KAFKA_URL", "kafka:29092")
 CONFIDENCE_THRESHOLD = float(os.environ.get("CONFIDENCE_THRESHOLD", "0.7"))
 
 app = FastAPI(title="Incident Analysis Agent", version="1.0.0")
@@ -41,7 +41,7 @@ app = FastAPI(title="Incident Analysis Agent", version="1.0.0")
 Instrumentator().instrument(app).expose(app)
 
 add_security_middleware(app)
-redis_conn = None
+kafka_pubsub = KafkaPubSub(KAFKA_URL)
 subscriber_task = None
 
 async def process_classification(content: str) -> dict:
@@ -173,43 +173,31 @@ async def report_result(task: AgentTask, success: bool, output: dict = None, err
         except Exception as e:
             logger.error(f"Failed to report result to Coordinator: {e}")
 
-async def redis_subscriber():
-    global redis_conn
-    while True:
-        try:
-            logger.info(f"Connecting to Redis at {REDIS_URL}...")
-            redis_conn = aioredis.from_url(REDIS_URL)
-            pubsub = redis_conn.pubsub()
-            await pubsub.subscribe("agent:incident_analysis:tasks")
-            logger.info("Successfully subscribed to agent:incident_analysis:tasks Redis channel")
-            
-            while True:
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                if message:
-                    data = message["data"]
-                    try:
-                        task_dict = json.loads(data)
-                        task = AgentTask(**task_dict)
-                        asyncio.create_task(process_and_report_task(task))
-                    except Exception as parse_err:
-                        logger.error(f"Failed to parse task JSON: {parse_err}")
-                await asyncio.sleep(0.1)
-        except Exception as e:
-            logger.error(f"Redis connection / subscriber error: {e}. Reconnecting in 5s...")
-            await asyncio.sleep(5)
+async def process_kafka_task(task_dict: dict):
+    try:
+        task = AgentTask(**task_dict)
+        asyncio.create_task(process_and_report_task(task))
+    except Exception as parse_err:
+        logger.error(f"Failed to parse task JSON: {parse_err}")
+
+async def kafka_subscriber():
+    logger.info(f"Subscribing to agent_incident_analysis_tasks topic...")
+    try:
+        await kafka_pubsub.subscribe("agent_incident_analysis_tasks", "incident_analysis_group", process_kafka_task)
+    except asyncio.CancelledError:
+        logger.info("Kafka subscriber cancelled.")
+    except Exception as e:
+        logger.error(f"Error in task listener loop: {e}")
 
 
 async def startup_event():
     global subscriber_task
-    subscriber_task = asyncio.create_task(redis_subscriber())
-
+    subscriber_task = asyncio.create_task(kafka_subscriber())
 
 async def shutdown_event():
-    global subscriber_task, redis_conn
+    global subscriber_task
     if subscriber_task:
         subscriber_task.cancel()
-    if redis_conn:
-        await redis_conn.close()
 
 # ---------------------------------------------------------------------------
 # API Endpoints

@@ -178,3 +178,4 @@ __all__ = [
     # lifecycle
     "create_graceful_lifespan",
 ]
+from .kafka_client import KafkaPubSub

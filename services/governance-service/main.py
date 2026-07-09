@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 import httpx
 import asyncpg
 import redis.asyncio as redis
+from aeos_shared.kafka_client import KafkaPubSub
 from aeos_shared import add_security_middleware, sanitize_json, sanitize_text, validate_policy_config
 
 # Import custom sub-modules
@@ -40,6 +41,7 @@ MEMORY_AGENT_URL = os.environ.get("MEMORY_AGENT_URL", "http://memory-agent:8017"
 OBSERVABILITY_URL = os.environ.get("OBSERVABILITY_URL", "http://observability-service:8040")
 ESCALATION_AGENT_URL = os.environ.get("ESCALATION_AGENT_URL", "http://escalation-agent:8015")
 COORDINATOR_URL = os.environ.get("COORDINATOR_URL", "http://coordinator:8001")
+KAFKA_URL = os.environ.get("KAFKA_URL", "kafka:29092")
 
 # Pydantic Request Models
 class ActionDescriptor(BaseModel):
@@ -125,13 +127,14 @@ def validate_policy_json(policy_type: str, config: dict):
     else:
         raise HTTPException(status_code=422, detail=f"Unsupported policy_type: '{policy_type}'")
 
-# Helper to publish policy reload signal to Redis
+kafka_pubsub = KafkaPubSub(KAFKA_URL)
+
+# Helper to publish policy reload signal to Kafka
 async def trigger_policy_reload(policy_name: str):
-    r = redis.from_url(REDIS_URL)
     try:
-        await r.publish("policy:updated", f"Policy '{policy_name}' updated")
+        await kafka_pubsub.publish("policy_updated", {"message": f"Policy '{policy_name}' updated", "policy_name": policy_name})
     except Exception as e:
-        logger.error(f"Failed to publish update notification to Redis: {e}")
+        logger.error(f"Failed to publish update notification to Kafka: {e}")
 
 # Helper to record event in Memory Agent Audit Trail
 async def record_audit_entry(agent: str, event_type: str, desc: str, inputs: dict, outputs: dict, incident_id: Optional[str] = None, workflow_id: Optional[str] = None, risk: Optional[float] = None):

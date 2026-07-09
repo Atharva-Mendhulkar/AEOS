@@ -4,6 +4,7 @@ import { Pool } from "pg";
 import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import winston from "winston";
+import { Kafka } from "kafkajs";
 
 const logger = winston.createLogger({
   level: "info",
@@ -23,9 +24,17 @@ const dbUrl = process.env.DATABASE_URL || "postgresql://postgres:postgres@postgr
 const memoryAgentUrl = process.env.MEMORY_AGENT_URL || "http://memory-agent:8017";
 const observabilityUrl = process.env.OBSERVABILITY_URL || "http://observability-service:8040";
 const plannerAgentUrl = process.env.PLANNER_AGENT_URL || "http://planner-agent:8010";
+const kafkaUrl = process.env.KAFKA_URL || "kafka:29092";
 
 const redis = new Redis(redisUrl);
 const dbPool = new Pool({ connectionString: dbUrl });
+
+const kafka = new Kafka({
+  clientId: "coordinator",
+  brokers: [kafkaUrl],
+});
+const producer = kafka.producer();
+producer.connect().then(() => logger.info("Coordinator connected to Kafka")).catch((err: any) => logger.error("Kafka Error", err));
 
 redis.on("connect", () => logger.info("Coordinator connected to Redis"));
 redis.on("error", (err: any) => logger.error("Redis Error", err));
@@ -123,8 +132,12 @@ async function activateStep(workflowId: string, stepId: string) {
       }
     };
 
-    await redis.publish(`agent:${step.agent_type}:tasks`, JSON.stringify(taskPayload));
-    logger.info(`Published task to agent:${step.agent_type}:tasks for step ${stepId}`);
+    const topic = `agent_${step.agent_type}_tasks`;
+    await producer.send({
+      topic,
+      messages: [{ value: JSON.stringify(taskPayload) }],
+    });
+    logger.info(`Published task to ${topic} for step ${stepId}`);
 
     // Emit agent.state_changed (active) for step.agent_type
     await emitAgentState(step.agent_type, "active", 1, incidentId, workflowId);
@@ -207,8 +220,12 @@ app.post("/coordinator/route-input", async (req: Request, res: Response) => {
     const dbResult = await dbPool.query("SELECT created_at FROM multimodal_inputs WHERE id = $1", [input_id]);
     const createdAt = dbResult.rows[0]?.created_at;
 
-    await redis.publish("agent:incident_analysis:tasks", JSON.stringify(task));
-    logger.info(`Task published to agent:incident_analysis:tasks. Task ID: ${taskId}`);
+    const topic = "agent_incident_analysis_tasks";
+    await producer.send({
+      topic,
+      messages: [{ value: JSON.stringify(task) }],
+    });
+    logger.info(`Task published to ${topic}. Task ID: ${taskId}`);
 
     // Emit agent.state_changed (active) for analysis agent
     await emitAgentState("analysis", "active", 1, input_id, workflowId);
@@ -246,7 +263,7 @@ app.post("/coordinator/route-input", async (req: Request, res: Response) => {
 
     res.json({ status: "routing", task_id: taskId });
   } catch (err: any) {
-    logger.error("Failed to publish task to Redis or query DB", err);
+    logger.error("Failed to publish task to Kafka or query DB", err);
     res.status(500).json({ error: "Failed to publish routing task", details: err.message });
   }
 });

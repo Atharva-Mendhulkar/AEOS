@@ -13,6 +13,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from celery import Celery
 from aeos_shared import add_security_middleware, sanitize_json
+from aeos_shared.kafka_client import KafkaPubSub
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("workflow-engine")
@@ -31,6 +32,9 @@ GOVERNANCE_URL = os.environ.get("GOVERNANCE_URL", "http://governance-service:802
 RECOVERY_AGENT_URL = os.environ.get("RECOVERY_AGENT_URL", "http://recovery-agent:8025")
 ESCALATION_AGENT_URL = os.environ.get("ESCALATION_AGENT_URL", "http://escalation-agent:8015")
 DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@postgres:5432/aeos")
+KAFKA_URL = os.environ.get("KAFKA_URL", "kafka:29092")
+
+kafka_pubsub = KafkaPubSub(KAFKA_URL)
 
 # Celery Setup
 celery_app = Celery("workflow_tasks", broker=REDIS_URL, backend=REDIS_URL)
@@ -468,11 +472,9 @@ async def restore_in_progress_workflows():
                             "permissions": []
                         }
                         try:
-                            r_client = redis_async.from_url(REDIS_URL)
-                            await r_client.publish(f"agent:{agent_type}:tasks", json.dumps(task_payload))
-                            await r_client.close()
+                            await kafka_pubsub.publish(f"agent_{agent_type}_tasks", task_payload)
                         except Exception as re:
-                            logger.error(f"Failed to publish re-enqueue event to Redis for step {step_id}: {re}")
+                            logger.error(f"Failed to publish re-enqueue event to Kafka for step {step_id}: {re}")
                             
                 # Emit event to Observability
                 try:

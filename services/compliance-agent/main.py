@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 from fastapi import FastAPI
 import httpx
 import redis.asyncio as redis
+from aeos_shared.kafka_client import KafkaPubSub
 from aeos_shared import add_security_middleware
 
 logging.basicConfig(level=logging.INFO)
@@ -23,6 +24,7 @@ Instrumentator().instrument(app).expose(app)
 add_security_middleware(app)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+KAFKA_URL = os.environ.get("KAFKA_URL", "kafka:29092")
 COORDINATOR_URL = os.environ.get("COORDINATOR_URL", "http://coordinator:8001")
 AGENT_TYPE = "compliance"
 
@@ -33,25 +35,16 @@ async def startup_event():
 
 should_stop = False
 
+kafka_pubsub = KafkaPubSub(KAFKA_URL)
+
 async def listen_to_tasks():
-    logger.info(f"Subscribing to agent:{AGENT_TYPE}:tasks channel...")
-    r_client = redis.from_url(REDIS_URL, decode_responses=True)
-    pubsub = r_client.pubsub()
-    await pubsub.subscribe(f"agent:{AGENT_TYPE}:tasks")
-    
-    while not should_stop:
-        try:
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-            if message:
-                data = json.loads(message["data"])
-                asyncio.create_task(process_task(data))
-        except Exception as e:
-            if not should_stop:
-                logger.error(f"Error in task listener loop: {e}")
-                await asyncio.sleep(1.0)
-    
-    await pubsub.unsubscribe(f"agent:{AGENT_TYPE}:tasks")
-    await r_client.close()
+    logger.info(f"Subscribing to agent_{AGENT_TYPE}_tasks topic...")
+    try:
+        await kafka_pubsub.subscribe(f"agent_{AGENT_TYPE}_tasks", f"{AGENT_TYPE}_group", process_task)
+    except asyncio.CancelledError:
+        logger.info("Task listener cancelled.")
+    except Exception as e:
+        logger.error(f"Error in task listener loop: {e}")
 
 async def process_task(task_data: dict):
     task_id = task_data.get("task_id")

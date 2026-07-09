@@ -14,6 +14,7 @@ from fastapi import Response
 from typing import Optional
 import asyncpg
 import redis.asyncio as redis
+from aeos_shared.kafka_client import KafkaPubSub
 
 from aeos_shared import (
     get,
@@ -45,6 +46,7 @@ MEMORY_AGENT_URL = os.environ.get("MEMORY_AGENT_URL", "http://memory-agent:8017"
 COORDINATOR_URL = os.environ.get("COORDINATOR_URL", "http://coordinator:8001")
 OBSERVABILITY_URL = os.environ.get("OBSERVABILITY_URL", "http://observability-service:8040")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+KAFKA_URL = os.environ.get("KAFKA_URL", "kafka:29092")
 UPLOAD_DIR = "/tmp/aeos_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -73,11 +75,11 @@ async def add_correlation_id(request: Request, call_next):
     response.headers.setdefault("X-Frame-Options", "DENY")
     return response
 
+kafka_pubsub = KafkaPubSub(KAFKA_URL)
+
 async def publish_policy_update(policy_name: str):
     try:
-        r_client = redis.from_url(REDIS_URL, decode_responses=True)
-        await r_client.publish("policy:updated", f"Policy '{policy_name}' updated")
-        await r_client.close()
+        await kafka_pubsub.publish("policy_updated", {"message": f"Policy '{policy_name}' updated", "policy_name": policy_name})
     except Exception as e:
         logger.warning(f"Failed to publish policy update for {policy_name}: {e}")
 

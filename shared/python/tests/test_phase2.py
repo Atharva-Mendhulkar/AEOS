@@ -27,9 +27,17 @@ workflow_engine = load_module("workflow_engine", os.path.join(BASE_DIR, "service
 
 @pytest.fixture(autouse=True)
 def mock_redis_lock():
-    with patch("workflow_engine.redis_async.from_url") as mock_from_url:
-        mock_conn = AsyncMock()
-        mock_conn.set.return_value = True
+    with patch("workflow_engine.redis_async.from_url", new_callable=MagicMock) as mock_from_url:
+        mock_conn = MagicMock()
+        async def fake_set(*args, **kwargs):
+            return True
+        mock_conn.set = fake_set
+        async def fake_delete(*args, **kwargs):
+            return True
+        mock_conn.delete = fake_delete
+        async def fake_aclose(*args, **kwargs):
+            pass
+        mock_conn.aclose = fake_aclose
         mock_from_url.return_value = mock_conn
         yield mock_conn
 
@@ -152,18 +160,21 @@ def test_workflow_execute_step_low_risk(mock_post):
     complete_call = [call for call in mock_post.call_args_list if "step-complete" in str(call)]
     assert len(complete_call) > 0
 
-@patch("asyncpg.connect")
-@patch("aeos_shared.http_client.request_with_retry")
+@patch("asyncpg.connect", new_callable=MagicMock)
+@patch("aeos_shared.http_client.request_with_retry", new_callable=MagicMock)
 def test_workflow_execute_step_high_risk_suspends(mock_post, mock_db):
-    # Mock Governance returns high risk (8.0, approved=True, but 7.0<=risk<9.0 suspends)
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"risk_score": 8.0, "approved": True}
-    )
+    async def fake_post(*args, **kwargs):
+        return MagicMock(status_code=200, json=lambda: {"risk_score": 8.0, "approved": True})
+    mock_post.side_effect = fake_post
+    
     # Mock asyncpg connection
-    mock_conn = AsyncMock()
-    mock_db.return_value = mock_conn
-
+    mock_conn = MagicMock()
+    async def fake_execute(*args, **kwargs):
+        pass
+    mock_conn.execute = fake_execute
+    async def fake_connect(*args, **kwargs):
+        return mock_conn
+    mock_db.side_effect = fake_connect
     client = TestClient(workflow_engine.app)
     response = client.post(
         "/workflow/execute-step",
@@ -190,13 +201,11 @@ def test_workflow_execute_step_high_risk_suspends(mock_post, mock_db):
     # Ensure DB is updated to set status to suspended
     assert mock_conn.execute.called
 
-@patch("aeos_shared.http_client.request_with_retry")
+@patch("aeos_shared.http_client.request_with_retry", new_callable=MagicMock)
 def test_workflow_execute_step_critical_risk_halts(mock_post):
-    # Mock Governance returns critical risk (9.5, approved=False)
-    mock_post.return_value = MagicMock(
-        status_code=200,
-        json=lambda: {"risk_score": 9.5, "approved": False}
-    )
+    async def fake_post(*args, **kwargs):
+        return MagicMock(status_code=200, json=lambda: {"risk_score": 9.5, "approved": False})
+    mock_post.side_effect = fake_post
 
     client = TestClient(workflow_engine.app)
     response = client.post(
