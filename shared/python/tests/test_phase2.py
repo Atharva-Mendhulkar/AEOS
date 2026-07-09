@@ -168,10 +168,7 @@ def test_workflow_execute_step_high_risk_suspends(mock_post, mock_db):
     mock_post.side_effect = fake_post
     
     # Mock asyncpg connection
-    mock_conn = MagicMock()
-    async def fake_execute(*args, **kwargs):
-        pass
-    mock_conn.execute = fake_execute
+    mock_conn = AsyncMock()
     async def fake_connect(*args, **kwargs):
         return mock_conn
     mock_db.side_effect = fake_connect

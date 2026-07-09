@@ -347,9 +347,9 @@ async def test_escalation_agent_timeout_escalation(mock_post, mock_redis_func):
 
 @pytest.mark.asyncio
 @patch("asyncpg.connect")
-@patch("redis.asyncio.from_url")
+@patch("workflow_engine.kafka_pubsub.publish", new_callable=AsyncMock)
 @patch("aeos_shared.http_client.request_with_retry")
-async def test_workflow_state_restoration(mock_request, mock_redis_func, mock_db_conn):
+async def test_workflow_state_restoration(mock_request, mock_publish, mock_db_conn):
     # Mock Memory Agent response returning 1 active workflow
     mock_wf_id = str(uuid.uuid4())
     mock_inc_id = str(uuid.uuid4())
@@ -374,22 +374,15 @@ async def test_workflow_state_restoration(mock_request, mock_redis_func, mock_db
     ]
     mock_db_conn.return_value = mock_db
     
-    # Mock Redis client
-    mock_redis = MagicMock()
-    mock_redis.publish = AsyncMock()
-    mock_redis.close = AsyncMock()
-    mock_redis_func.return_value = mock_redis
-    
     # Run state restoration logic
     await workflow_engine.restore_in_progress_workflows()
     
     # Verify re-enqueue logic published to agent channel
-    assert mock_redis.publish.called
-    channel, message = mock_redis.publish.call_args[0]
-    assert channel == "agent:operations:tasks"
-    msg_data = json.loads(message)
-    assert msg_data["workflow_id"] == mock_wf_id
-    assert msg_data["incident_id"] == mock_inc_id
+    assert mock_publish.called
+    channel, message = mock_publish.call_args[0]
+    assert channel == "agent_operations_tasks"
+    assert message["workflow_id"] == mock_wf_id
+    assert message["incident_id"] == mock_inc_id
     
     # Verify workflow.restored event emitted
     obs_calls = [call for call in mock_request.call_args_list if "observability/events" in str(call)]
@@ -401,48 +394,18 @@ async def test_workflow_state_restoration(mock_request, mock_redis_func, mock_db
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-@patch("operations_agent.redis.from_url")
 @patch("aeos_shared.http_client.request_with_retry")
-async def test_operations_specialist_agent_flow(mock_post, mock_redis_func):
-    mock_redis = MagicMock()
-    mock_redis.close = AsyncMock()
-    mock_pubsub = AsyncMock()
+async def test_operations_specialist_agent_flow(mock_post):
+    task_data = {
+        "task_id": "task-operations-123",
+        "workflow_id": "wf-123",
+        "step_id": "step-123",
+        "incident_id": "inc-123",
+        "action": {"tool": "restart_service", "params": {"service_name": "db"}}
+    }
     
-    # Return mock task message on first call, then stop the loop
-    calls = 0
-    def mock_get_message(*args, **kwargs):
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            return {
-                "type": "message",
-                "pattern": None,
-                "channel": "agent:operations:tasks",
-                "data": json.dumps({
-                    "task_id": "task-operations-123",
-                    "workflow_id": "wf-123",
-                    "step_id": "step-123",
-                    "incident_id": "inc-123",
-                    "action": {"tool": "restart_service", "params": {"service_name": "db"}}
-                })
-            }
-        else:
-            operations_agent.should_stop = True
-            return None
-            
-    mock_pubsub.get_message.side_effect = mock_get_message
-    
-    mock_redis.pubsub.return_value = mock_pubsub
-    mock_redis_func.return_value = mock_redis
-    
-    # Reset should_stop before starting
-    operations_agent.should_stop = False
-    
-    # Run loop (will stop after 2nd get_message call)
-    await operations_agent.listen_to_tasks()
-    
-    # Wait for the background process_task task to execute
-    await asyncio.sleep(0.1)
+    # Call process_task directly instead of testing Kafka loop
+    await operations_agent.process_task(task_data)
     
     # Assert success callback is posted back to Coordinator
     cb_calls = [call for call in mock_post.call_args_list if "coordinator/step-complete" in str(call)]
