@@ -349,12 +349,11 @@ async def test_escalation_agent_timeout_escalation(mock_post, mock_redis_func):
 @patch("asyncpg.connect")
 @patch("redis.asyncio.from_url")
 @patch("aeos_shared.http_client.request_with_retry")
-@patch("aeos_shared.http_client.request_with_retry")
-async def test_workflow_state_restoration(mock_post, mock_get, mock_redis_func, mock_db_conn):
+async def test_workflow_state_restoration(mock_request, mock_redis_func, mock_db_conn):
     # Mock Memory Agent response returning 1 active workflow
     mock_wf_id = str(uuid.uuid4())
     mock_inc_id = str(uuid.uuid4())
-    mock_get.return_value = MagicMock(status_code=200, json=lambda: [
+    mock_request.return_value = MagicMock(status_code=200, json=lambda: [
         {
             "id": mock_wf_id,
             "incident_id": mock_inc_id,
@@ -378,6 +377,7 @@ async def test_workflow_state_restoration(mock_post, mock_get, mock_redis_func, 
     # Mock Redis client
     mock_redis = MagicMock()
     mock_redis.publish = AsyncMock()
+    mock_redis.close = AsyncMock()
     mock_redis_func.return_value = mock_redis
     
     # Run state restoration logic
@@ -392,7 +392,7 @@ async def test_workflow_state_restoration(mock_post, mock_get, mock_redis_func, 
     assert msg_data["incident_id"] == mock_inc_id
     
     # Verify workflow.restored event emitted
-    obs_calls = [call for call in mock_post.call_args_list if "observability/events" in str(call)]
+    obs_calls = [call for call in mock_request.call_args_list if "observability/events" in str(call)]
     assert len(obs_calls) == 1
     assert obs_calls[0][1]["json"]["type"] == "workflow.restored"
 
