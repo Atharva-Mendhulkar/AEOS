@@ -490,49 +490,52 @@ if __name__ == "__main__":
 # ---------------------------------------------------------------------------
 # gRPC Server implementation
 # ---------------------------------------------------------------------------
-class MemoryServiceServicer(agent_service_pb2_grpc.MemoryServiceServicer):
-    async def SaveAudit(self, request: agent_service_pb2.SaveAuditRequest, context: grpc.aio.ServicerContext) -> agent_service_pb2.SaveAuditResponse:
-        logger.info(f"gRPC SaveAudit for incident {request.incident_id}")
-        
-        entry = AuditEntry(
-            event_type=request.event_type,
-            agent_identity=request.agent_identity,
-            action_description=request.action_description,
-            inputs=json.loads(request.inputs_json) if request.inputs_json else {},
-            outputs=json.loads(request.outputs_json) if request.outputs_json else {},
-            incident_id=request.incident_id or None,
-            workflow_id=request.workflow_id or None,
-            risk_score=request.risk_score
-        )
-        
-        try:
-            # We call the same logic as POST /memory/audit
-            res = await append_audit(entry)
-            return agent_service_pb2.SaveAuditResponse(status="success", message="Audit entry saved")
-        except HTTPException as he:
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(he.detail))
-            return agent_service_pb2.SaveAuditResponse(status="failed", message=str(he.detail))
-        except Exception as e:
-            logger.error(f"SaveAudit Error: {e}")
-            context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details(str(e))
-            return agent_service_pb2.SaveAuditResponse(status="failed", message=str(e))
+if _GRPC_AVAILABLE:
+    class MemoryServiceServicer(agent_service_pb2_grpc.MemoryServiceServicer):
+        async def SaveAudit(self, request: agent_service_pb2.SaveAuditRequest, context: grpc.aio.ServicerContext) -> agent_service_pb2.SaveAuditResponse:
+            logger.info(f"gRPC SaveAudit for incident {request.incident_id}")
+            
+            entry = AuditEntry(
+                event_type=request.event_type,
+                agent_identity=request.agent_identity,
+                action_description=request.action_description,
+                inputs=json.loads(request.inputs_json) if request.inputs_json else {},
+                outputs=json.loads(request.outputs_json) if request.outputs_json else {},
+                incident_id=request.incident_id or None,
+                workflow_id=request.workflow_id or None,
+                risk_score=request.risk_score
+            )
+            
+            try:
+                # We call the same logic as POST /memory/audit
+                res = await append_audit(entry)
+                return agent_service_pb2.SaveAuditResponse(status="success", message="Audit entry saved")
+            except HTTPException as he:
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details(str(he.detail))
+                return agent_service_pb2.SaveAuditResponse(status="failed", message=str(he.detail))
+            except Exception as e:
+                logger.error(f"SaveAudit Error: {e}")
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details(str(e))
+                return agent_service_pb2.SaveAuditResponse(status="failed", message=str(e))
 
-async def serve_grpc():
-    server = grpc.aio.server()
-    agent_service_pb2_grpc.add_MemoryServiceServicer_to_server(MemoryServiceServicer(), server)
-    server.add_insecure_port('[::]:50052')
-    await server.start()
-    logger.info("gRPC MemoryService started on port 50052")
-    await server.wait_for_termination()
+    async def serve_grpc():
+        server = grpc.aio.server()
+        agent_service_pb2_grpc.add_MemoryServiceServicer_to_server(MemoryServiceServicer(), server)
+        server.add_insecure_port('[::]:50052')
+        await server.start()
+        logger.info("gRPC MemoryService started on port 50052")
+        await server.wait_for_termination()
 
 async def startup_event():
     await startup()
-    asyncio.create_task(serve_grpc())
+    if _GRPC_AVAILABLE:
+        asyncio.create_task(serve_grpc())
 
 # Inject Graceful Lifespan
 app.router.lifespan_context = create_graceful_lifespan(
     startup_func=startup_event,
     shutdown_func=shutdown
 )
+

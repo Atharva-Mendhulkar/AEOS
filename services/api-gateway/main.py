@@ -84,6 +84,13 @@ async def add_correlation_id(request: Request, call_next):
 kafka_pubsub = KafkaPubSub(KAFKA_URL)
 
 async def grpc_save_audit(entry: dict):
+    if not _GRPC_AVAILABLE:
+        # Fallback to REST when gRPC stubs are not available
+        try:
+            await post(f"{MEMORY_AGENT_URL}/memory/audit", json=entry, timeout=5.0)
+        except Exception as e:
+            logger.warning(f"REST SaveAudit fallback failed: {e}")
+        return
     try:
         # Extract fields from dict with defaults
         inputs_json = json.dumps(entry.get("inputs", {}))
