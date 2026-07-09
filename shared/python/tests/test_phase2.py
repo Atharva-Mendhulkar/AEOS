@@ -25,6 +25,13 @@ def load_module(module_name, file_path):
 planner_agent = load_module("planner_agent", os.path.join(BASE_DIR, "services/planner-agent/main.py"))
 workflow_engine = load_module("workflow_engine", os.path.join(BASE_DIR, "services/workflow-engine/main.py"))
 
+@pytest.fixture(autouse=True)
+def mock_redis_lock():
+    with patch("workflow_engine.RedisDistributedLock.__aenter__", new_callable=AsyncMock) as mock_aenter, \
+         patch("workflow_engine.RedisDistributedLock.__aexit__", new_callable=AsyncMock) as mock_aexit:
+        yield
+
+
 from fastapi.testclient import TestClient
 
 # ---------------------------------------------------------------------------
