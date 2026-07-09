@@ -1,3 +1,4 @@
+from aeos_shared import create_graceful_lifespan
 from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
@@ -100,11 +101,11 @@ async def audit_policy_change(event_type: str, payload: JWTPayload, policy_id: s
 def cache_read_response(response: Response, max_age_seconds: int = 5):
     response.headers["Cache-Control"] = f"private, max-age={max_age_seconds}, stale-while-revalidate=30"
 
-@app.on_event("startup")
+
 async def startup_event():
     await init_db_pool()
 
-@app.on_event("shutdown")
+
 async def shutdown_event():
     await close_db_pool()
 
@@ -655,3 +656,10 @@ async def get_observability_agents(
                 raise HTTPException(status_code=resp.status_code, detail=resp.text)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+
+
+# Inject Graceful Lifespan
+app.router.lifespan_context = create_graceful_lifespan(
+    startup_func=startup_event,
+    shutdown_func=shutdown_event
+)

@@ -94,6 +94,7 @@ from aeos_shared.http_client import (
     delete,
     CircuitBreakerOpenException,
 )
+from aeos_shared.lifecycle import create_graceful_lifespan
 
 __all__ = [
     # auth
@@ -174,4 +175,6 @@ __all__ = [
     "put",
     "delete",
     "CircuitBreakerOpenException",
+    # lifecycle
+    "create_graceful_lifespan",
 ]

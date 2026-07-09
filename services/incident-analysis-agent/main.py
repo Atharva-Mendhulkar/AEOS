@@ -1,3 +1,4 @@
+from aeos_shared import create_graceful_lifespan
 from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
@@ -197,12 +198,12 @@ async def redis_subscriber():
             logger.error(f"Redis connection / subscriber error: {e}. Reconnecting in 5s...")
             await asyncio.sleep(5)
 
-@app.on_event("startup")
+
 async def startup_event():
     global subscriber_task
     subscriber_task = asyncio.create_task(redis_subscriber())
 
-@app.on_event("shutdown")
+
 async def shutdown_event():
     global subscriber_task, redis_conn
     if subscriber_task:
@@ -229,3 +230,10 @@ async def get_capabilities() -> AgentCapabilities:
         supported_action_types=["classify"],
         max_concurrent_tasks=10
     )
+
+
+# Inject Graceful Lifespan
+app.router.lifespan_context = create_graceful_lifespan(
+    startup_func=startup_event,
+    shutdown_func=shutdown_event
+)

@@ -1,3 +1,4 @@
+from aeos_shared import create_graceful_lifespan
 from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
@@ -35,6 +36,15 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@po
 celery_app = Celery("workflow_tasks", broker=REDIS_URL, backend=REDIS_URL)
 celery_app.conf.update(
     task_always_eager=os.environ.get("CELERY_ALWAYS_EAGER", "False").lower() in ("true", "1", "t"),
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    worker_prefetch_multiplier=1,
+    worker_concurrency=4,
+    task_default_queue='workflow_tasks',
+    task_routes={
+        'tasks.execute_step': {'queue': 'workflow_tasks'},
+        'tasks.dlq': {'queue': 'dlq'}
+    }
 )
 
 # ---------------------------------------------------------------------------
@@ -98,10 +108,37 @@ def datetime_now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 # ---------------------------------------------------------------------------
-# Celery Execution Task
+# Celery Execution Task & DLQ
 # ---------------------------------------------------------------------------
-@celery_app.task(name="tasks.execute_step")
-def celery_execute_step(task_data: dict):
+import redis.asyncio as redis_async
+import celery.exceptions
+
+class RedisDistributedLock:
+    def __init__(self, redis_url: str, lock_key: str, ttl_ms: int = 30000):
+        self.redis_url = redis_url
+        self.lock_key = lock_key
+        self.ttl_ms = ttl_ms
+        self.r = None
+        self.acquired = False
+
+    async def __aenter__(self):
+        self.r = redis_async.from_url(self.redis_url)
+        self.acquired = await self.r.set(self.lock_key, "LOCKED", nx=True, px=self.ttl_ms)
+        if not self.acquired:
+            raise Exception(f"Failed to acquire lock for {self.lock_key}")
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if self.acquired and self.r:
+            await self.r.delete(self.lock_key)
+        if self.r:
+            await self.r.aclose()
+
+@celery_app.task(name="tasks.dlq")
+def celery_dlq_handler(task_data: dict, error_msg: str):
+    logger.error(f"DLQ received failed task: {task_data} with error: {error_msg}")
+@celery_app.task(name="tasks.execute_step", bind=True, max_retries=3)
+def celery_execute_step(self, task_data: dict):
     """Celery worker execution block (sync wrapper over async logic)."""
     try:
         loop = asyncio.get_running_loop()
@@ -128,13 +165,24 @@ def celery_execute_step(task_data: dict):
         t.start()
         t.join()
         if error:
-            raise error[0]
+            try:
+                self.retry(exc=error[0], countdown=2)
+            except celery.exceptions.MaxRetriesExceededError:
+                celery_dlq_handler.delay(task_data, str(error[0]))
+                raise error[0]
         return result[0] if result else None
     else:
         # Standard Celery worker execution
         new_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(new_loop)
-        return new_loop.run_until_complete(async_celery_execute_step(task_data))
+        try:
+            return new_loop.run_until_complete(async_celery_execute_step(task_data))
+        except Exception as e:
+            try:
+                self.retry(exc=e, countdown=2)
+            except celery.exceptions.MaxRetriesExceededError:
+                celery_dlq_handler.delay(task_data, str(e))
+                raise
 
 async def async_celery_execute_step(task_data: dict):
     task_id = task_data["task_id"]
@@ -149,12 +197,22 @@ async def async_celery_execute_step(task_data: dict):
 
     logger.info(f"Worker running step {step_id} ({tool}) for workflow {workflow_id}")
 
+    lock_key = f"lock:step:{step_id}"
     try:
-        # Execute tool
-        output = await asyncio.wait_for(
-            execute_tool_logic(tool, params, timeout),
-            timeout=float(timeout)
-        )
+        async with RedisDistributedLock(REDIS_URL, lock_key):
+            try:
+                # Execute tool
+                output = await asyncio.wait_for(
+                    execute_tool_logic(tool, params, timeout),
+                    timeout=float(timeout)
+                )
+            except Exception as execution_error:
+                raise execution_error
+    except Exception as e:
+        if "Failed to acquire lock" in str(e):
+            logger.info(f"Step {step_id} is already being executed (locked). Skipping duplicate.")
+            return {"status": "skipped", "reason": "lock_acquired_by_other_worker"}
+        raise e
         
         # Report success back to Coordinator
         if True:
@@ -440,7 +498,7 @@ async def restore_in_progress_workflows():
         except Exception as e:
             logger.error(f"Error in restore_in_progress_workflows: {str(e)}")
 
-@app.on_event("startup")
+
 async def startup_event():
     asyncio.create_task(restore_in_progress_workflows())
 
@@ -451,3 +509,10 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8030)
+
+
+# Inject Graceful Lifespan
+app.router.lifespan_context = create_graceful_lifespan(
+    startup_func=startup_event,
+    shutdown_func=None
+)

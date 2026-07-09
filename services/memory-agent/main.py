@@ -1,3 +1,4 @@
+from aeos_shared import create_graceful_lifespan
 from prometheus_fastapi_instrumentator import Instrumentator
 import os
 import json
@@ -33,14 +34,14 @@ OBSERVABILITY_URL = os.environ.get("OBSERVABILITY_URL", "http://observability-se
 db_pool = None
 redis_client = None
 
-@app.on_event("startup")
+
 async def startup():
     global db_pool, redis_client
     db_pool = await asyncpg.create_pool(DATABASE_URL)
     redis_client = redis.from_url(REDIS_URL, decode_responses=True)
     logger.info("Memory Agent started database pool and Redis connection.")
 
-@app.on_event("shutdown")
+
 async def shutdown():
     if db_pool:
         await db_pool.close()
@@ -478,3 +479,10 @@ async def enforce_retention_endpoint(retention_days: int = Query(90, ge=1)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8017)
+
+
+# Inject Graceful Lifespan
+app.router.lifespan_context = create_graceful_lifespan(
+    startup_func=startup,
+    shutdown_func=shutdown
+)

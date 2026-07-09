@@ -1,3 +1,4 @@
+from aeos_shared import create_graceful_lifespan
 from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
@@ -25,7 +26,7 @@ REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 COORDINATOR_URL = os.environ.get("COORDINATOR_URL", "http://coordinator:8001")
 AGENT_TYPE = "operations"
 
-@app.on_event("startup")
+
 async def startup_event():
     asyncio.create_task(listen_to_tasks())
     logger.info("Operations Agent subscriber loop started.")
@@ -115,3 +116,10 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8012)
+
+
+# Inject Graceful Lifespan
+app.router.lifespan_context = create_graceful_lifespan(
+    startup_func=startup_event,
+    shutdown_func=None
+)

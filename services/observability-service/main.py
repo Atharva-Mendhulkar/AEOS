@@ -1,3 +1,4 @@
+from aeos_shared import create_graceful_lifespan
 from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
@@ -323,3 +324,10 @@ app = socketio.ASGIApp(sio, other_asgi_app=app, socketio_path="/ws/events")
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8040)
+
+
+# Inject Graceful Lifespan
+app.router.lifespan_context = create_graceful_lifespan(
+    startup_func=None,
+    shutdown_func=None
+)

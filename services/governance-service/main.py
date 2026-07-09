@@ -1,3 +1,4 @@
+from aeos_shared import create_graceful_lifespan
 from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
@@ -454,7 +455,7 @@ async def health():
     return {"status": "healthy", "service": "governance"}
 
 # Startup configuration
-@app.on_event("startup")
+
 async def startup_event():
     logger.info("Initializing Governance Service cache and starting pub-sub listener...")
     # Initial load of postgres permission cache to Redis
@@ -465,3 +466,10 @@ async def startup_event():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8020)
+
+
+# Inject Graceful Lifespan
+app.router.lifespan_context = create_graceful_lifespan(
+    startup_func=startup_event,
+    shutdown_func=None
+)

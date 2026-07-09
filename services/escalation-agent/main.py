@@ -1,3 +1,4 @@
+from aeos_shared import create_graceful_lifespan
 from prometheus_fastapi_instrumentator import Instrumentator
 from aeos_shared import get, post, put, delete
 import os
@@ -47,7 +48,7 @@ class ResolveRequest(BaseModel):
 # Active escalations stored in-memory or Redis. We use Redis for robustness.
 # We also run a background task for timeout monitoring.
 
-@app.on_event("startup")
+
 async def startup_event():
     # Start background timeout monitor task
     asyncio.create_task(monitor_escalation_timeouts())
@@ -421,3 +422,10 @@ async def health():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8016)
+
+
+# Inject Graceful Lifespan
+app.router.lifespan_context = create_graceful_lifespan(
+    startup_func=startup_event,
+    shutdown_func=None
+)
