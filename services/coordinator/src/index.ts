@@ -5,6 +5,9 @@ import axios from "axios";
 import { v4 as uuidv4 } from "uuid";
 import winston from "winston";
 import { Kafka } from "kafkajs";
+import * as grpc from '@grpc/grpc-js';
+import * as protoLoader from '@grpc/proto-loader';
+import path from 'path';
 
 const logger = winston.createLogger({
   level: "info",
@@ -25,6 +28,21 @@ const memoryAgentUrl = process.env.MEMORY_AGENT_URL || "http://memory-agent:8017
 const observabilityUrl = process.env.OBSERVABILITY_URL || "http://observability-service:8040";
 const plannerAgentUrl = process.env.PLANNER_AGENT_URL || "http://planner-agent:8010";
 const kafkaUrl = process.env.KAFKA_URL || "kafka:29092";
+
+// Load gRPC definitions
+const PROTO_PATH = path.resolve(__dirname, '../../../shared/proto/agent_service.proto');
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+  keepCase: true,
+  longs: String,
+  enums: String,
+  defaults: true,
+  oneofs: true
+});
+const protoDescriptor = grpc.loadPackageDefinition(packageDefinition) as any;
+const plannerClient = new protoDescriptor.aeos.agents.PlannerService(
+  'planner-agent:50051',
+  grpc.credentials.createInsecure()
+);
 
 const redis = new Redis(redisUrl);
 const dbPool = new Pool({ connectionString: dbUrl });
@@ -475,12 +493,18 @@ app.post("/coordinator/step-complete", async (req: Request, res: Response) => {
         // Emit agent.state_changed (active) for planner agent
         await emitAgentState("planner", "active", 1, incidentId, workflow_id);
 
-        axios.post(`${plannerAgentUrl}/planner/generate`, {
+        plannerClient.GeneratePlan({
           incident_id: incidentId,
           severity: finalSeverity,
           root_signature: root_signature,
           workflow_id: workflow_id
-        }).catch(err => logger.error(`Failed to invoke planner-agent: ${err.message}`));
+        }, (err: any, response: any) => {
+          if (err) {
+            logger.error(`Failed to invoke planner-agent via gRPC: ${err.message}`);
+          } else {
+            logger.info(`gRPC Planner Response: ${response.status}`);
+          }
+        });
       }
 
       res.json({ status: "created", incident_id: incidentId, workflow_id });

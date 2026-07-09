@@ -15,6 +15,8 @@ from typing import Optional
 import asyncpg
 import redis.asyncio as redis
 from aeos_shared.kafka_client import KafkaPubSub
+import grpc
+from aeos_shared.grpc import agent_service_pb2, agent_service_pb2_grpc
 
 from aeos_shared import (
     get,
@@ -77,6 +79,32 @@ async def add_correlation_id(request: Request, call_next):
 
 kafka_pubsub = KafkaPubSub(KAFKA_URL)
 
+async def grpc_save_audit(entry: dict):
+    try:
+        # Extract fields from dict with defaults
+        inputs_json = json.dumps(entry.get("inputs", {}))
+        outputs_json = json.dumps(entry.get("outputs", {}))
+        
+        req = agent_service_pb2.SaveAuditRequest(
+            event_type=entry.get("event_type", "unknown"),
+            agent_identity=entry.get("agent_identity", "api-gateway"),
+            action_description=entry.get("action_description", ""),
+            inputs_json=inputs_json,
+            outputs_json=outputs_json,
+            incident_id=entry.get("incident_id", ""),
+            workflow_id=entry.get("workflow_id", ""),
+            risk_score=float(entry.get("risk_score", 0.0)),
+            prev_entry_hash=entry.get("prev_entry_hash", "")
+        )
+        # Assuming memory-agent is running gRPC on 50052
+        async with grpc.aio.insecure_channel('memory-agent:50052') as channel:
+            stub = agent_service_pb2_grpc.MemoryServiceStub(channel)
+            res = await stub.SaveAudit(req, timeout=5.0)
+            if res.status != "success":
+                logger.error(f"gRPC SaveAudit returned {res.status}: {res.message}")
+    except Exception as e:
+        logger.warning(f"gRPC SaveAudit failed: {e}")
+
 async def publish_policy_update(policy_name: str):
     try:
         await kafka_pubsub.publish("policy_updated", {"message": f"Policy '{policy_name}' updated", "policy_name": policy_name})
@@ -86,17 +114,13 @@ async def publish_policy_update(policy_name: str):
 async def audit_policy_change(event_type: str, payload: JWTPayload, policy_id: str, name: str, config: dict, version: int):
     try:
         if True:
-            await post(
-                f"{MEMORY_AGENT_URL}/memory/audit",
-                json={
-                    "event_type": event_type,
-                    "agent_identity": "api-gateway",
-                    "action_description": f"Policy '{name}' {event_type.split('.')[-1]} by {payload.sub}",
-                    "inputs": {"policy_id": policy_id, "policy_config": config},
-                    "outputs": {"policy_id": policy_id, "version": version},
-                },
-                timeout=5.0,
-            )
+            await grpc_save_audit({
+                "event_type": event_type,
+                "agent_identity": "api-gateway",
+                "action_description": f"Policy '{name}' {event_type.split('.')[-1]} by {payload.sub}",
+                "inputs": {"policy_id": policy_id, "policy_config": config},
+                "outputs": {"policy_id": policy_id, "version": version},
+            })
     except Exception as e:
         logger.warning(f"Failed to audit policy change for {policy_id}: {e}")
 
@@ -191,9 +215,10 @@ async def ingest_incident(
                     "action_description": f"Multimodal input format '{format}' is unsupported",
                     "inputs": {"format": format, "metadata": metadata},
                     "outputs": {"error": "Unsupported format"},
+                    "risk_score": 5.0,
                     "prev_entry_hash": "genesis"
                 }
-                await post(f"{MEMORY_AGENT_URL}/memory/audit", json=audit_entry)
+                await grpc_save_audit(audit_entry)
             except Exception as e:
                 logger.warning(f"Failed to log format rejection: {e}")
         
@@ -401,10 +426,10 @@ async def cancel_workflow(
                 "workflow_id": str(id),
                 "action_description": f"Workflow {id} was manually cancelled by operator",
                 "inputs": {"operator": payload.sub},
-                "outputs": {"status": "failed"},
+                "risk_score": 0.0,
                 "prev_entry_hash": "genesis"
             }
-            await post(f"{MEMORY_AGENT_URL}/memory/audit", json=audit_entry)
+            await grpc_save_audit(audit_entry)
         except Exception as e:
             logger.warning(f"Failed to audit workflow cancellation: {e}")
 

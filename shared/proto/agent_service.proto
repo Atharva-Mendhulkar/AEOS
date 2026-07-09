@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package aeos.agents;
+
+// The Planner Service handles generating workflows from incident analysis.
+service PlannerService {
+  rpc GeneratePlan (GeneratePlanRequest) returns (GeneratePlanResponse);
+}
+
+message GeneratePlanRequest {
+  string incident_id = 1;
+  string severity = 2;
+  string root_signature = 3;
+  string workflow_id = 4;
+}
+
+message GeneratePlanResponse {
+  string status = 1;
+  string message = 2;
+  string workflow_id = 3;
+}
+
+// The Memory Service handles persistent knowledge and audit logging.
+service MemoryService {
+  rpc SaveAudit (SaveAuditRequest) returns (SaveAuditResponse);
+}
+
+message SaveAuditRequest {
+  string event_type = 1;
+  string agent_identity = 2;
+  string action_description = 3;
+  string inputs_json = 4; // JSON encoded inputs
+  string outputs_json = 5; // JSON encoded outputs
+  string incident_id = 6;
+  string workflow_id = 7;
+  double risk_score = 8;
+  string prev_entry_hash = 9;
+}
+
+message SaveAuditResponse {
+  string status = 1;
+  string message = 2;
+}
